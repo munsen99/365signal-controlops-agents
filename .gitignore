@@ -1,0 +1,32 @@
+# Secrets
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.pfx
+
+# Hermes runtime artefacts
+**/logs/*
+**/sessions/*
+**/cron/*
+**/runs/*
+**/outputs/*
+**/tmp/*
+**/.cache/*
+
+# Preserve empty directories where required
+!**/logs/.gitkeep
+!**/runs/.gitkeep
+!**/outputs/.gitkeep
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Editors and operating systems
+.vscode/
+.DS_Store
+Thumbs.db

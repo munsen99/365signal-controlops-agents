@@ -1,0 +1,17 @@
+task:
+  task_id: validate-entra-connect-001
+  title: Validate Entra Connect identity synchronisation claim
+  submitted_at: "2026-07-26T00:00:00Z"
+  submitted_by: 365signal
+
+claim:
+  text: Microsoft Entra Connect synchronises identities from on-premises Active Directory to Microsoft Entra ID.
+  context: Validate the general technical accuracy of this statement.
+  required_sources:
+    - Microsoft Learn
+
+validation:
+  required_output_format: markdown
+  human_review_required: true
+  maximum_source_age_days: null
+  notes: Use only official Microsoft sources for the initial test.

@@ -1,0 +1,38 @@
+evidence:
+  source_id: ""
+  claim_ids: []
+  relationship:
+    supports: []
+    contradicts: []
+    contextualises: []
+
+  source:
+    title: ""
+    publisher: ""
+    url: ""
+    domain: ""
+    retrieved_at: ""
+    published_at: null
+    last_updated_at: null
+    section_heading: ""
+
+  content:
+    evidence_excerpt: ""
+    evidence_summary: ""
+    interpretation: ""
+
+  assessment:
+    source_type: official_documentation
+    authority: high
+    currency:
+      status: current
+      notes: ""
+    ambiguity:
+      status: clear
+      notes: ""
+
+  integrity:
+    exact_url_recorded: true
+    retrieval_date_recorded: true
+    citation_verified: false
+    human_reviewed: false

@@ -1,0 +1,17 @@
+task:
+  task_id: ""
+  title: ""
+  submitted_at: ""
+  submitted_by: ""
+
+claim:
+  text: ""
+  context: ""
+  required_sources:
+    - Microsoft Learn
+
+validation:
+  required_output_format: markdown
+  human_review_required: true
+  maximum_source_age_days: null
+  notes: ""
