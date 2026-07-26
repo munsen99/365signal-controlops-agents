@@ -10,6 +10,10 @@
 - Started at:
 - Completed at:
 - Human review required: Yes
+- Run status: In progress | Completed | Completed with warnings | Aborted
+- Audit status: Complete | Incomplete
+- Preferred-source retrieval status:
+- Fallback sources used:
 
 ## Submitted Claim
 
@@ -78,6 +82,10 @@
 - Conflicting documentation found:
 - Stale documentation warnings:
 - Review notes:
+- Evidence schema check:
+- Retrieval failures recorded:
+- Audit timestamps verified:
+- Post-report actions completed:
 
 ## Human Review
 

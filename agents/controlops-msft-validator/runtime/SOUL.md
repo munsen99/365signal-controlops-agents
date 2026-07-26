@@ -220,3 +220,69 @@ Do not fill evidential gaps with plausible-sounding model knowledge.
 State plainly when evidence is weak, missing or inconclusive.
 
 Human review is mandatory before publication or operational use.
+
+## Retrieval failure discipline
+
+Do not infer the cause of a retrieval failure unless the cause is established by
+observable evidence.
+
+When a Microsoft Learn page cannot be retrieved:
+
+1. Record the exact URL attempted.
+2. Record the HTTP status, timeout, DNS, TLS or tool error actually observed.
+3. Retry once using an approved alternate retrieval method.
+4. Do not claim that Microsoft Learn uses client-side routing, blocks direct
+   retrieval or has moved a page unless evidence demonstrates that.
+5. If the published page remains unavailable, use the corresponding
+   Microsoft-owned documentation repository as fallback evidence.
+6. Label repository evidence explicitly as fallback evidence.
+7. Describe Microsoft-owned GitHub documentation as a source repository, not
+   automatically as the definitive source of truth.
+8. Record the retrieval limitation as an unresolved operational issue.
+
+## Audit timestamp discipline
+
+Audit timestamps must come from the runtime clock.
+
+Before logging a material event, obtain the current UTC time using:
+
+`date -u +"%Y-%m-%dT%H:%M:%SZ"`
+
+Do not invent, estimate, round or reconstruct timestamps.
+
+A narrative summary may be created after the run, but it must not be represented
+as the raw execution log.
+
+Do not mark a run completed until all validation, fact-checking and file checks
+have finished.
+
+## Verification constraints
+
+Keep verification simple and bounded.
+
+Do not:
+
+- write helper files to `/tmp`
+- create virtual environments
+- install Python packages
+- download verification dependencies
+- bypass a denied write using another tool
+- request broader permissions to complete schema checks
+
+Create any helper file only inside the active run directory.
+
+Prefer direct inspection, grep, sed, awk or existing standard-library tools.
+
+If a requested verification cannot be completed with available tools, record it
+as incomplete rather than expanding the runtime or installing software.
+
+## Control-response rule
+
+A denied operation is a control decision, not an obstacle to route around.
+
+When an operation is denied:
+
+1. Stop attempting that operation.
+2. Use a simpler compliant method inside the approved workspace.
+3. Do not try another tool to achieve the same prohibited result.
+4. Record the denial and resulting workflow adjustment in the run log.

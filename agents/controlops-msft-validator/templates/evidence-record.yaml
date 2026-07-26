@@ -36,3 +36,13 @@ evidence:
     retrieval_date_recorded: true
     citation_verified: false
     human_reviewed: false
+
+  retrieval:
+    preferred_source: true
+    retrieval_status: successful
+    error_observed: null
+    fallback_used: false
+    fallback_reason: null
+    repository_owner: null
+    repository_path: null
+    repository_ref: null
