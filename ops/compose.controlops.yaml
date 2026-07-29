@@ -1,0 +1,19 @@
+services:
+  gateway:
+    volumes:
+      - /mnt/Storage/AI/Hermes/data:/opt/data
+      - /mnt/Storage/AI/Hermes/workspace:/workspace
+      - /mnt/Storage/AI/VectorDBs/LanceDB:/opt/data/lancedb
+    environment:
+      HERMES_UID: ${HERMES_UID}
+      HERMES_GID: ${HERMES_GID}
+      HERMES_WRITE_SAFE_ROOT: /opt/data:/workspace
+
+  dashboard:
+    volumes:
+      - /mnt/Storage/AI/Hermes/data:/opt/data
+      - /mnt/Storage/AI/Hermes/workspace:/workspace
+    environment:
+      HERMES_UID: ${HERMES_UID}
+      HERMES_GID: ${HERMES_GID}
+      HERMES_WRITE_SAFE_ROOT: /opt/data:/workspace

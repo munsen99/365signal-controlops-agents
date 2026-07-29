@@ -1,0 +1,340 @@
+#!/usr/bin/env bash
+
+set -o errexit
+set -o nounset
+set -o pipefail
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/lib/controlops-common.sh
+source "${SCRIPT_DIR}/lib/controlops-common.sh"
+
+usage() {
+  cat <<'EOF'
+Usage: scripts/controlops <command> [options]
+
+Manage the ControlOps Hermes deployment.
+
+Commands:
+  start              Validate dependencies and start gateway and dashboard
+  stop               Stop gateway and dashboard without removing containers
+  restart            Stop and start gateway and dashboard
+  status             Show a compact, read-only service summary
+  logs [--follow]    Show the last 200 log lines; optionally follow
+  doctor             Run classified read-only operational checks
+  rebuild            Explicitly rebuild the image and start the services
+  help               Show this help
+EOF
+}
+
+require_no_args() {
+  if (($# != 0)); then
+    controlops_error "This command does not accept arguments."
+    usage >&2
+    return 2
+  fi
+}
+
+warn_dirty_repositories() {
+  if controlops_git_dirty "${CONTROL_OPS_ROOT}"; then
+    controlops_warn "ControlOps repository has uncommitted changes."
+  fi
+  if controlops_git_dirty "${HERMES_SOURCE_ROOT}"; then
+    controlops_warn "Hermes source repository has uncommitted changes."
+  fi
+}
+
+show_status() {
+  local container
+  local state
+  local status
+  local image
+  local started
+
+  printf 'ControlOps Hermes\n'
+  printf '  Project:    %s\n' "${CONTROL_OPS_PROJECT}"
+  printf '  LM Studio:  '
+  if controlops_check_lm_studio 2>/dev/null; then
+    printf 'available (%s)\n' "${LM_STUDIO_MODELS_URL}"
+  else
+    printf 'unavailable (%s)\n' "${LM_STUDIO_MODELS_URL}"
+  fi
+
+  for container in hermes hermes-dashboard; do
+    if ! docker inspect "${container}" >/dev/null 2>&1; then
+      printf '  %-10s absent\n' "${container}"
+      continue
+    fi
+    state="$(docker inspect --format '{{.State.Status}}' "${container}")"
+    status="$(docker inspect --format \
+      '{{if .State.Health}}{{.State.Health.Status}}{{else}}no-healthcheck{{end}}' \
+      "${container}")"
+    image="$(docker inspect --format '{{.Config.Image}}' "${container}")"
+    started="$(docker inspect --format '{{.State.StartedAt}}' "${container}")"
+    printf '  %-10s state=%s health=%s image=%s started=%s\n' \
+      "${container}" "${state}" "${status}" "${image}" "${started}"
+  done
+
+  printf '  Dashboard:  '
+  if controlops_dashboard_responding; then
+    printf 'responding (%s)\n' "${HERMES_DASHBOARD_URL}"
+  else
+    printf 'unavailable (%s)\n' "${HERMES_DASHBOARD_URL}"
+  fi
+}
+
+start_services() {
+  warn_dirty_repositories
+  controlops_preflight
+  if ! controlops_check_lm_studio; then
+    controlops_error "LM Studio is unavailable at ${LM_STUDIO_MODELS_URL}."
+    controlops_error "Start LM Studio and load the configured model, then retry."
+    return 1
+  fi
+
+  printf 'Starting ControlOps Hermes...\n'
+  controlops_compose up -d gateway dashboard
+  controlops_wait_ready 30
+  controlops_verify_container_mounts
+  show_status
+}
+
+stop_services() {
+  controlops_validate_docker
+  controlops_validate_required_paths
+  controlops_validate_effective_config
+  printf 'Stopping ControlOps Hermes without removing containers or volumes...\n'
+  controlops_compose stop dashboard gateway
+  show_status
+}
+
+restart_services() {
+  warn_dirty_repositories
+  controlops_preflight
+  if ! controlops_check_lm_studio; then
+    controlops_error "LM Studio is unavailable at ${LM_STUDIO_MODELS_URL}."
+    controlops_error "Restart was not attempted."
+    return 1
+  fi
+  controlops_compose stop dashboard gateway
+  controlops_compose up -d gateway dashboard
+  controlops_wait_ready 30
+  controlops_verify_container_mounts
+  show_status
+}
+
+rebuild_services() {
+  warn_dirty_repositories
+  controlops_preflight
+  if ! controlops_check_lm_studio; then
+    controlops_error "LM Studio is unavailable at ${LM_STUDIO_MODELS_URL}."
+    controlops_error "Rebuild was not attempted."
+    return 1
+  fi
+  printf 'Rebuilding the Hermes image explicitly...\n'
+  controlops_compose build gateway
+  controlops_compose up -d gateway dashboard
+  controlops_wait_ready 30
+  controlops_verify_container_mounts
+  show_status
+}
+
+show_logs() {
+  local follow=0
+  if (($# > 1)); then
+    controlops_error "logs accepts only the optional --follow argument."
+    return 2
+  fi
+  if (($# == 1)); then
+    if [[ "$1" != "--follow" ]]; then
+      controlops_error "Unknown logs option: $1"
+      return 2
+    fi
+    follow=1
+  fi
+
+  controlops_validate_docker
+  controlops_validate_required_paths
+  controlops_validate_effective_config
+  if ((follow)); then
+    controlops_compose logs --tail 200 --follow gateway dashboard
+  else
+    controlops_compose logs --tail 200 gateway dashboard
+  fi
+}
+
+doctor() {
+  local pass_count=0
+  local warn_count=0
+  local fail_count=0
+  local config_json=""
+
+  doctor_pass() {
+    printf 'PASS  %s\n' "$1"
+    ((pass_count += 1))
+  }
+  doctor_warn() {
+    printf 'WARN  %s\n' "$1"
+    ((warn_count += 1))
+  }
+  doctor_fail() {
+    printf 'FAIL  %s\n' "$1"
+    ((fail_count += 1))
+  }
+
+  printf 'ControlOps Hermes doctor\n'
+
+  if command -v docker >/dev/null 2>&1; then
+    doctor_pass "Docker CLI is installed"
+  else
+    doctor_fail "Docker CLI is not installed"
+  fi
+
+  if docker compose version >/dev/null 2>&1; then
+    doctor_pass "Docker Compose is available"
+  else
+    doctor_fail "Docker Compose is unavailable"
+  fi
+
+  if docker info >/dev/null 2>&1; then
+    doctor_pass "Docker daemon is accessible"
+  else
+    doctor_fail "Docker daemon is unavailable or access is denied"
+  fi
+
+  if controlops_validate_required_paths >/dev/null 2>&1; then
+    doctor_pass "Required files and directories exist"
+  else
+    doctor_fail "One or more required files or directories are missing"
+  fi
+
+  if command -v jq >/dev/null 2>&1; then
+    doctor_pass "jq is installed"
+  else
+    doctor_fail "jq is required for safe Compose validation"
+  fi
+
+  if config_json="$(controlops_render_config_json 2>/dev/null)" &&
+    controlops_validate_config_json "${config_json}" >/dev/null 2>&1; then
+    doctor_pass "Effective Compose model matches the ControlOps contract"
+  else
+    doctor_fail "Effective Compose model does not match the ControlOps contract"
+  fi
+
+  if controlops_git_dirty "${CONTROL_OPS_ROOT}"; then
+    doctor_warn "ControlOps repository has uncommitted changes"
+  else
+    doctor_pass "ControlOps repository working tree is clean"
+  fi
+
+  if controlops_git_dirty "${HERMES_SOURCE_ROOT}"; then
+    doctor_warn "Hermes source repository has uncommitted changes"
+  else
+    doctor_pass "Hermes source repository working tree is clean"
+  fi
+
+  if controlops_check_lm_studio >/dev/null 2>&1; then
+    doctor_pass "LM Studio models endpoint is available"
+  else
+    doctor_warn "LM Studio is unavailable; start/restart/rebuild will refuse to proceed"
+  fi
+
+  if controlops_container_running hermes; then
+    doctor_pass "Gateway container is running"
+  elif docker inspect hermes >/dev/null 2>&1; then
+    doctor_warn "Gateway container exists but is not running"
+  else
+    doctor_warn "Gateway container does not currently exist"
+  fi
+
+  if controlops_container_running hermes-dashboard; then
+    doctor_pass "Dashboard container is running"
+  elif docker inspect hermes-dashboard >/dev/null 2>&1; then
+    doctor_warn "Dashboard container exists but is not running"
+  else
+    doctor_warn "Dashboard container does not currently exist"
+  fi
+
+  if controlops_container_running hermes &&
+    controlops_container_running hermes-dashboard; then
+    if controlops_verify_container_mounts >/dev/null 2>&1; then
+      doctor_pass "Running containers have the expected bind mounts"
+    else
+      doctor_fail "Running containers do not have the expected bind mounts"
+    fi
+  else
+    doctor_warn "Runtime mount verification skipped because both containers are not running"
+  fi
+
+  if controlops_dashboard_responding; then
+    doctor_pass "Dashboard HTTP endpoint is responding"
+  else
+    doctor_warn "Dashboard HTTP endpoint is not responding"
+  fi
+
+  if [[ -x /home/proteu5/.venvs/controlops-graph-mcp/bin/controlops-mcp ]]; then
+    doctor_pass "Graph MCP executable is available for on-demand stdio use"
+  else
+    doctor_warn "Graph MCP executable was not found at the documented path"
+  fi
+
+  if [[ -d /mnt/Storage/AI/RAG/MultimodalIngest ]]; then
+    doctor_pass "Batch/filesystem RAG capability is present"
+  else
+    doctor_warn "Batch/filesystem RAG capability was not found"
+  fi
+
+  printf '\nSummary: PASS=%d WARN=%d FAIL=%d\n' \
+    "${pass_count}" "${warn_count}" "${fail_count}"
+  ((fail_count == 0))
+}
+
+main() {
+  local command="${1:-help}"
+  if (($# > 0)); then
+    shift
+  fi
+
+  case "${command}" in
+    start)
+      require_no_args "$@"
+      start_services
+      ;;
+    stop)
+      require_no_args "$@"
+      stop_services
+      ;;
+    restart)
+      require_no_args "$@"
+      restart_services
+      ;;
+    status)
+      require_no_args "$@"
+      controlops_validate_docker
+      controlops_validate_required_paths
+      controlops_validate_effective_config
+      show_status
+      ;;
+    logs)
+      show_logs "$@"
+      ;;
+    doctor)
+      require_no_args "$@"
+      doctor
+      ;;
+    rebuild)
+      require_no_args "$@"
+      rebuild_services
+      ;;
+    help|-h|--help)
+      require_no_args "$@"
+      usage
+      ;;
+    *)
+      controlops_error "Unknown command: ${command}"
+      usage >&2
+      return 2
+      ;;
+  esac
+}
+
+main "$@"
