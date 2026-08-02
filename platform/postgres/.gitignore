@@ -2,3 +2,11 @@
 backups/*.dump
 backups/*.sql
 backups/*.gz
+
+# Local catalogue source exports
+importer/input/*.json
+
+# Python runtime
+importer/.venv/
+importer/**/__pycache__/
+importer/**/*.pyc
