@@ -69,6 +69,34 @@ recorded and adjudicated in `domain_review`; limitations go to `schema_gap`;
 repeated patterns may be proposed, but not activated, in
 `candidate_classification_rule`.
 
+## Analyst batch 1
+
+Migration `007-load-graph-permission-analyst-batch-1.sql` persists the first
+human-approved analyst batch for reviewer `jon_bruce`, review round `1`. All
+eight reviews are stored as `reviewer_kind = 'analyst'` and
+`review_status = 'submitted'`; no Codex reviews or disagreements are created.
+
+| Permission | Type | Primary domain | Secondary domains |
+| --- | --- | --- | --- |
+| `User.Read` | Delegated | `DIRECTORY_ORG_MANAGEMENT` | None |
+| `Directory.AccessAsUser.All` | Delegated | `AUTHORIZATION_ACCESS_GOVERNANCE` | `PRIVILEGED_ACCESS` |
+| `AuditLog.Read.All` | Delegated | `LOGGING_MONITORING_AUDIT` | `AUDIT_ASSURANCE` |
+| `AppRoleAssignment.ReadWrite.All` | Application | `APPLICATION_IDENTITY_CONSENT` | `AUTHORIZATION_ACCESS_GOVERNANCE`, `PRIVILEGED_ACCESS` |
+| `DeviceLocalCredential.Read.All` | Application | `ENDPOINT_DEVICE_MANAGEMENT` | `AUTHENTICATION`, `PRIVILEGED_ACCESS` |
+| `Sites.Selected` | Application | `SHAREPOINT_ONEDRIVE` | `APPLICATION_IDENTITY_CONSENT` |
+| `Teamwork.Migrate.All` | Application | `MICROSOFT_TEAMS` | `APPLICATION_IDENTITY_CONSENT`, `AUDIT_ASSURANCE` |
+| `Chat.Manage.Chat` | RSC | `MICROSOFT_TEAMS` | `AUTHORIZATION_ACCESS_GOVERNANCE`, `APPLICATION_IDENTITY_CONSENT` |
+
+The schema stores controlled vocabulary in lowercase. Human confidence `High`
+is stored as `high`, and `Medium` as `medium`. The human `Medium-high` decision
+for `Directory.AccessAsUser.All` has no exact schema value and is stored as
+`high`, the closest upper-band value; its original wording remains documented
+here. The approved decisions did not explicitly assign access level,
+capability, administrative capability, privilege level, data sensitivity,
+destructive potential, tenant-wide impact or consent sensitivity. Those
+nullable columns remain null rather than converting contextual wording in the
+rationales into additional analyst decisions.
+
 ## Limitations and non-inferable criteria
 
 - Delegated catalogue rows currently have null Microsoft `display_name` values.
@@ -102,3 +130,24 @@ proves pilot existence, exact count, catalogue membership, uniqueness, the
 dimensions, both scope dimensions, all three risk dimensions, multi-domain
 coverage, rerun idempotency, preservation of existing reviews, and an unchanged
 permission catalogue fingerprint.
+
+`platform/postgres/validation/007-load-graph-permission-analyst-batch-1-validation.sql`
+invokes migration `007` twice and checks the exact eight reviews and nineteen
+domain assignments, one primary domain per review, the exact approved
+secondary-domain sets, rerun idempotency, no reviews on the remaining 28
+permissions, unchanged Codex and other-analyst reviews, no disagreements, and
+unchanged catalogue and selection data.
+
+## Independent Codex batch 1
+
+An independent Codex review of the same eight batch-1 permissions was
+performed under reviewer identifier `codex_independent_batch_1`, review round
+`1`. Migration `008-load-graph-permission-codex-batch-1.sql` persists the
+submitted reviews, and
+`008-load-graph-permission-codex-batch-1-validation.sql` validates the batch.
+
+Local validation confirmed eight Codex reviews, eight primary and four
+secondary domain assignments, no null controlled attributes, idempotent reruns,
+unchanged analyst records, unchanged catalogue and selection data, and no
+created disagreements. Analyst and Codex decisions remain intentionally
+uncompared pending the separate comparison stage.
