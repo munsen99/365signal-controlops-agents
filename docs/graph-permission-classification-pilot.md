@@ -151,3 +151,25 @@ secondary domain assignments, no null controlled attributes, idempotent reruns,
 unchanged analyst records, unchanged catalogue and selection data, and no
 created disagreements. Analyst and Codex decisions remain intentionally
 uncompared pending the separate comparison stage.
+
+## Independent Codex remaining 28
+
+Migration `009-load-graph-permission-codex-remaining-28.sql` independently
+classifies the 28 final selections not reviewed in Codex batch 1. It persists
+submitted reviews under reviewer identifier `codex_remaining_28`, review round
+`1`, without creating analyst reviews, disagreements or adjudications.
+
+Validation `009-load-graph-permission-codex-remaining-28-validation.sql`
+confirmed 28 reviews and 28 primary domain assignments, exact coverage of the
+database-derived remainder, complete controlled attributes, unchanged analyst
+and Codex batch-1 records, 36 unchanged final selections, an unchanged
+catalogue count and fingerprint, unchanged workflow state, and a no-op second
+migration run. Confidence is 25 `high`, 3 `medium` and 0 `low`. Three reviews
+contain one or more `unknown` classification values.
+
+Candidate schema-gap themes observed during this batch are delegated authority
+inherited from mailbox or signed-in-user assignments, selected-resource rights
+whose effective capability depends on a separate SharePoint grant, and RSC
+media access whose directionality is not expressed by the capability
+vocabulary. These are observations for later human review; no `schema_gap` rows
+or schema changes were created.
