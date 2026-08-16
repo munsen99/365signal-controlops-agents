@@ -31,12 +31,6 @@ evidence:
       status: clear
       notes: ""
 
-  integrity:
-    exact_url_recorded: true
-    retrieval_date_recorded: true
-    citation_verified: false
-    human_reviewed: false
-
   retrieval:
     preferred_source: true
     retrieval_status: successful
@@ -46,3 +40,9 @@ evidence:
     repository_owner: null
     repository_path: null
     repository_ref: null
+
+  integrity:
+    exact_url_recorded: true
+    retrieval_date_recorded: true
+    citation_verified: false
+    human_reviewed: false

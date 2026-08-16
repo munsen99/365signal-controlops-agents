@@ -7,8 +7,11 @@
 - Task ID:
 - Run ID:
 - Model:
-- Started at:
-- Completed at:
+- Started at UTC:
+- Completed at UTC:
+- Started at local time:
+- Completed at local time:
+- Local timezone: Europe/London
 - Human review required: Yes
 - Run status: In progress | Completed | Completed with warnings | Aborted
 - Audit status: Complete | Incomplete

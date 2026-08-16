@@ -1,0 +1,6 @@
+cd /mnt/Storage/AI/Hermes/workspace
+
+bash scripts/controlops start
+bash scripts/controlops status
+bash scripts/controlops logs
+bash scripts/controlops stop

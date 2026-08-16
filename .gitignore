@@ -30,3 +30,7 @@ venv/
 .vscode/
 .DS_Store
 Thumbs.db
+
+# ControlOps validator generated runtime artefacts
+agents/controlops-msft-validator/tests/*/output/
+agents/controlops-msft-validator/tests/*/evidence/run-*/
