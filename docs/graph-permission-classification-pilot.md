@@ -173,3 +173,66 @@ whose effective capability depends on a separate SharePoint grant, and RSC
 media access whose directionality is not expressed by the capability
 vocabulary. These are observations for later human review; no `schema_gap` rows
 or schema changes were created.
+
+## Analyst drafts for the remaining 28
+
+Migration `010-create-analyst-drafts-remaining-28.sql` creates 28
+machine-proposed analyst working drafts for reviewer `jon_bruce`, review round
+`1`, with status `draft`. Their initial attributes, rationales and domain
+assignments are copied unchanged from the submitted `codex_remaining_28`
+reviews. This provides a starting point for deliberate human review; only the
+human analyst may approve a draft and change its status to `submitted`.
+
+Migration `010` is an initializer, not a synchronization process. It inserts
+the complete set only when all 28 target analyst rows are absent, performs no
+updates when all 28 exist, and fails on a partial target set. Rerunning it
+therefore cannot revert analyst edits or status changes.
+
+Validation `010-create-analyst-drafts-remaining-28-validation.sql` confirms 36
+analyst reviews (8 submitted and 28 draft), exact initial equivalence with the
+Codex source reviews and domains, protected review isolation, unchanged pilot
+and catalogue state, unchanged workflow state, and a no-op second run.
+
+### DBeaver analyst review queries
+
+All 36 analyst reviews, with drafts first:
+
+```sql
+SELECT permission.permission_name,
+       permission.permission_type,
+       review.review_status,
+       review.capability,
+       review.access_level,
+       review.privilege_level,
+       review.data_sensitivity,
+       review.destructive_potential,
+       review.consent_sensitivity,
+       review.classification_confidence,
+       max(domain.domain_code) FILTER
+           (WHERE assignment.assignment_kind = 'primary') AS primary_domain,
+       coalesce(string_agg(domain.domain_code, ', ' ORDER BY domain.domain_code)
+           FILTER (WHERE assignment.assignment_kind = 'secondary'), '')
+           AS secondary_domains,
+       review.rationale
+FROM permission_pilot.classification_review review
+JOIN permission_pilot.permission_selection selection USING (selection_id)
+JOIN permission_pilot.pilot_definition pilot USING (pilot_id)
+JOIN catalogue.permission_definition permission USING (permission_definition_id)
+JOIN permission_pilot.review_domain_assignment assignment USING (review_id)
+JOIN catalogue.controlops_domain domain USING (domain_id)
+WHERE pilot.pilot_code = 'MSGRAPH_PERMISSION_CLASSIFICATION_FINAL_36'
+  AND review.reviewer_kind = 'analyst'
+  AND review.reviewer_identifier = 'jon_bruce'
+  AND review.review_round = 1
+GROUP BY permission.permission_name, permission.permission_type,
+         review.review_id
+ORDER BY CASE review.review_status WHEN 'draft' THEN 0 ELSE 1 END,
+         permission.permission_type, permission.permission_name;
+```
+
+To show only the 28 drafts awaiting review, use the same query with this
+additional predicate before `GROUP BY`:
+
+```sql
+  AND review.review_status = 'draft'
+```
