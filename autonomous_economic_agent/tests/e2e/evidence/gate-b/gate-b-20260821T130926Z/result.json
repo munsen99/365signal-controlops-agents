@@ -1,0 +1,1 @@
+{"run_id":"gate-b-20260821T130926Z","result":"FAIL","classification":"WALLET_OPENING_STATE_MISMATCH","reason":"economic cycle completed but wallet omitted opening capital and did not reconcile"}

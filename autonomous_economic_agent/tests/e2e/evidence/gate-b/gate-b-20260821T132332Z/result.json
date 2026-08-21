@@ -1,0 +1,1 @@
+{"run_id":"gate-b-20260821T132332Z","result":"FAIL","classification":"MODEL_JUDGEMENT","reason":"model progressed runaway and failure-after-spend fixtures before completing profitable work"}

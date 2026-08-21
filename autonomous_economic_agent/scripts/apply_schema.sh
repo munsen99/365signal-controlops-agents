@@ -64,6 +64,7 @@ import os
 from pathlib import Path
 
 import psycopg
+from psycopg import sql
 
 from aea.config import load_policy
 from aea.hashing import sha256_hex
@@ -84,7 +85,11 @@ def maybe_password(role: str, env_name: str) -> None:
         print(f"WARN: {path} not present; role {role} has no password yet")
         return
     pw = path.read_text(encoding="utf-8").rstrip("\n")
-    conn.execute("ALTER ROLE " + role + " PASSWORD %s", (pw,))
+    conn.execute(
+        sql.SQL("ALTER ROLE {} PASSWORD {}").format(
+            sql.Identifier(role), sql.Literal(pw)
+        )
+    )
     print(f"Updated password for role {role}")
 
 maybe_password("economic_app", "AEA_APP_PASSWORD_FILE")

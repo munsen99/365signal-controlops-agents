@@ -1,0 +1,29 @@
+{
+  "phase": "A",
+  "wallet": "mock",
+  "marketplace": "mock",
+  "control_graph": "controlops-economic",
+  "hermes_runtime": "hermes-agent:latest",
+  "hermes_version": "0.18.2",
+  "lmstudio_endpoint": "http://127.0.0.1:1234/v1",
+  "configured_model": "lmstudio-community/qwen3.6-35b-a3b",
+  "profile_booted": true,
+  "canonical_soul_loaded": true,
+  "tools": [
+    "find_jobs",
+    "evaluate_job",
+    "accept_job",
+    "perform_job",
+    "submit_work",
+    "check_payment",
+    "request_payment",
+    "get_financial_state",
+    "record_decision"
+  ],
+  "general_purpose_tools_observed": [],
+  "max_tool_calls": 40,
+  "wall_clock_limit_seconds": 600,
+  "live_wallet": false,
+  "live_marketplace": false,
+  "solana": false
+}

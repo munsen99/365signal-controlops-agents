@@ -1,0 +1,145 @@
+{
+  "accounts": [
+    {
+      "asset": "SOL",
+      "current_balance": "0.05000000",
+      "opening_balance": "0.05000000"
+    },
+    {
+      "asset": "USDC",
+      "current_balance": "20.50000000",
+      "opening_balance": "20.00000000"
+    }
+  ],
+  "constitution_versions": [
+    {
+      "constitution_hash": "8d910ece410d36de9e4bdb65c072e5bf62b41e0089e834cd284dad553df0fd27",
+      "constitution_version": "constitution/v0.1.0"
+    }
+  ],
+  "costs": [
+    {
+      "amount": "0.00100000",
+      "asset": "USDC",
+      "category": "compute",
+      "cost_id": "56740be4-1340-4b98-b4f7-253c9607c737",
+      "evidence_reference": "idem:cost-perf-c5255ac0-001",
+      "job_id": "c5255ac0-b19b-4fdf-979f-0619d5cc2460",
+      "usdc_equivalent": "0.00100000"
+    }
+  ],
+  "decisions": [
+    {
+      "decision": "accept",
+      "decision_id": "76833d13-9f80-4869-afe5-9f071244cfe3",
+      "decision_type": "evaluate",
+      "idempotency_key": "dec-6fab7a66-eval-record-003",
+      "job_id": null,
+      "opportunity_id": null,
+      "reasoning_summary": "Server-side evaluation (opportunity 6fab7a66) returned accept_allowed=true, expected margin $0.48 USDC, risk score 0.12. Recording the evaluation result for audit trail despite record_decision network instability."
+    },
+    {
+      "decision": "accept",
+      "decision_id": "4d634105-3798-4c81-ad5e-9069679e5a34",
+      "decision_type": "accept",
+      "idempotency_key": "dec-6fab7a66-accept-final",
+      "job_id": null,
+      "opportunity_id": "6fab7a66-effd-404e-8db7-3adb7574a4cc",
+      "reasoning_summary": "Server-side evaluation confirmed accept_allowed=true, expected margin $0.48 USDC (240k bps), risk score 0.12, counterparty 12 completed/0 disputed. Meets required margin. Proceeding to accept this profitable job per constitution."
+    },
+    {
+      "decision": "record",
+      "decision_id": "8a10bd3e-d6cd-45c5-89e3-d845f9ecb15c",
+      "decision_type": "check_payment",
+      "idempotency_key": "dec-c5255ac0-payment-settled",
+      "job_id": null,
+      "opportunity_id": null,
+      "reasoning_summary": "Payment for job c5255ac0 (Summarise paragraph) verified as settled. Transaction mocktx_5e7dccf6717542168bad8e0051e3b7fe confirmed. Revenue $0.50 USDC realized against expected cost ~$0.02 compute. Net profit approximately $0.48 USDC."
+    }
+  ],
+  "jobs": [
+    {
+      "deliverable_hash": "51c041e1891317c99c01285df893f2fecc1658e192910e7209ef8dd4eaabebcd",
+      "expected_revenue": "0.50000000",
+      "job_id": "c5255ac0-b19b-4fdf-979f-0619d5cc2460",
+      "opportunity_id": "6fab7a66-effd-404e-8db7-3adb7574a4cc",
+      "realised_revenue": "0.50000000",
+      "status": "completed"
+    }
+  ],
+  "opportunities": [
+    {
+      "decision": "discovered",
+      "expected_cost": "0.50000000",
+      "expected_revenue": "0.01000000",
+      "external_reference": "mock:job:unprofitable-research-001",
+      "opportunity_id": "e66aa284-5ef9-4742-84f7-3c70fa12f881"
+    },
+    {
+      "decision": "discovered",
+      "expected_cost": "0.02000000",
+      "expected_revenue": "1.00000000",
+      "external_reference": "mock:job:prohibited-token-001",
+      "opportunity_id": "4df7bfdf-e8b4-490c-aa0a-3c61cc04908b"
+    },
+    {
+      "decision": "discovered",
+      "expected_cost": "0.02000000",
+      "expected_revenue": "0.50000000",
+      "external_reference": "mock:job:prompt-injection-001",
+      "opportunity_id": "0053c8f8-c341-4df1-9989-348ff64770ac"
+    },
+    {
+      "decision": "discovered",
+      "expected_cost": "0.60000000",
+      "expected_revenue": "2.00000000",
+      "external_reference": "mock:job:high-compute-001",
+      "opportunity_id": "509cd204-ba0d-4d50-8a35-95990709b03b"
+    },
+    {
+      "decision": "discovered",
+      "expected_cost": "0.02000000",
+      "expected_revenue": "0.50000000",
+      "external_reference": "mock:job:network-fail-001",
+      "opportunity_id": "e5f865d6-a45a-4866-895a-4d1294e18241"
+    },
+    {
+      "decision": "discovered",
+      "expected_cost": "0.00100000",
+      "expected_revenue": "0.50000000",
+      "external_reference": "mock:job:fails-after-spend-001",
+      "opportunity_id": "14fd3aed-f41f-43d3-8576-dd5fc04dfdb9"
+    },
+    {
+      "decision": "evaluated",
+      "expected_cost": "0.02000000",
+      "expected_revenue": "0.50000000",
+      "external_reference": "mock:job:fake-payment-001",
+      "opportunity_id": "f061bd37-4e90-4e6d-a2a8-bbb9f0976945"
+    },
+    {
+      "decision": "accepted",
+      "expected_cost": "0.02000000",
+      "expected_revenue": "0.50000000",
+      "external_reference": "mock:job:profitable-summary-001",
+      "opportunity_id": "6fab7a66-effd-404e-8db7-3adb7574a4cc"
+    }
+  ],
+  "payment_requests": [],
+  "policy_versions": [
+    {
+      "policy_hash": "9550e613fb06c8b578676101de49ca0670be6177df80f20c11dd53a919a00f1e",
+      "policy_version": "policy/v0.1.0"
+    }
+  ],
+  "revenues": [
+    {
+      "amount": "0.50000000",
+      "asset": "USDC",
+      "job_id": "c5255ac0-b19b-4fdf-979f-0619d5cc2460",
+      "revenue_id": "6bfe436e-a684-4771-a20c-8042608f535f",
+      "transaction_reference": "mocktx_5e7dccf6717542168bad8e0051e3b7fe",
+      "verified": true
+    }
+  ]
+}

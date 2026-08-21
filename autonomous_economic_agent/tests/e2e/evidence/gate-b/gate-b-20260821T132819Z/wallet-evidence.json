@@ -1,0 +1,7 @@
+{
+  "balances": {
+    "SOL": "0.050000",
+    "USDC": "20.500000"
+  },
+  "reconciliation_delta_usdc": "0E-8"
+}

@@ -1,0 +1,20 @@
+{
+  "run_id": "gate-b-20260821T124246Z",
+  "gate": "M1 Gate B",
+  "result": "FAIL",
+  "failure_class": "contract_integration",
+  "failure_code": "HERMES_PLUGIN_HANDLER_SIGNATURE",
+  "failure": "Hermes passed a positional tool-argument dictionary to handlers that accepted keyword arguments only.",
+  "configured_model": "lmstudio-community/qwen3.6-35b-a3b",
+  "provider": "lmstudio",
+  "profile": "economic-agent",
+  "model_session_started": true,
+  "session_id": "20260821_124247_ab3bb6",
+  "economic_tool_calls_attempted": true,
+  "economic_state_mutations": 0,
+  "human_economic_intervention": false,
+  "m1_state_reset_before_attempt": true,
+  "secrets_present": false,
+  "start_timestamp": "2026-08-21T12:42:46Z",
+  "end_timestamp": "2026-08-21T12:43:10Z"
+}

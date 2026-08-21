@@ -59,6 +59,7 @@ services:
       AEA_WALLET_READ_TOKEN_FILE: /secrets/tokens/wallet_read
       AEA_POSTGRES_PASSWORD_FILE: /secrets/postgres_password
       AEA_POLICY_FILE: /secrets/policy.v1.yaml
+      AEA_DESTINATIONS_FILE: /secrets/destinations.yaml
       AEA_FREEZE_PATH: /secrets/freeze/FREEZE
     volumes:
       - ${AEA_SECRETS:-/home/proteu5/.config/controlops/economic}/tokens/control:/secrets/tokens/control:ro
@@ -67,6 +68,7 @@ services:
       - ${AEA_SECRETS:-/home/proteu5/.config/controlops/economic}/tokens/wallet_read:/secrets/tokens/wallet_read:ro
       - ${AEA_SECRETS:-/home/proteu5/.config/controlops/economic}/postgres_password:/secrets/postgres_password:ro
       - ${AEA_SECRETS:-/home/proteu5/.config/controlops/economic}/policy.v1.yaml:/secrets/policy.v1.yaml:ro
+      - ../config/destinations.yaml:/secrets/destinations.yaml:ro
       - ${AEA_SECRETS:-/home/proteu5/.config/controlops/economic}/freeze:/secrets/freeze:ro
       - aea_run:/run/aea
     healthcheck:
@@ -88,6 +90,7 @@ services:
       AEA_WALLET_URL: http://127.0.0.1:18704
       AEA_FREEZE_PATH: /secrets/freeze/FREEZE
       AEA_POLICY_VERSION: policy/v0.1.0
+      AEA_POLICY_HASH: 9550e613fb06c8b578676101de49ca0670be6177df80f20c11dd53a919a00f1e
     volumes:
       - ${AEA_SECRETS:-/home/proteu5/.config/controlops/economic}/tokens/signer:/secrets/tokens/signer:ro
       - ${AEA_SECRETS:-/home/proteu5/.config/controlops/economic}/tokens/signer_hmac:/secrets/tokens/signer_hmac:ro

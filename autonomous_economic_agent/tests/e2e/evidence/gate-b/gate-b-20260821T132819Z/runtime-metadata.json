@@ -1,0 +1,36 @@
+{
+  "api_calls": 12,
+  "constitution_hash": "8d910ece410d36de9e4bdb65c072e5bf62b41e0089e834cd284dad553df0fd27",
+  "constitution_version": "constitution/v0.1.0",
+  "disabled_general_purpose_tools": true,
+  "endpoint": "http://127.0.0.1:1234/v1",
+  "model": "lmstudio-community/qwen3.6-35b-a3b",
+  "policy_hash": "9550e613fb06c8b578676101de49ca0670be6177df80f20c11dd53a919a00f1e",
+  "policy_version": "policy/v0.1.0",
+  "profile": "economic-agent",
+  "provider": "lmstudio",
+  "session_id": "20260821_132821_fbc376",
+  "soul_sha256": "8d910ece410d36de9e4bdb65c072e5bf62b41e0089e834cd284dad553df0fd27",
+  "supervisor": {
+    "code": "OK",
+    "detail": "not_frozen",
+    "frozen": false,
+    "loop_enabled": true,
+    "ok": true,
+    "poll_interval_seconds": 10,
+    "signer_enabled": true,
+    "updated_at": "2026-08-21T13:27:58.196587+00:00",
+    "updated_by": "operator-gate-b-reset-ready"
+  },
+  "tool_registry": [
+    "find_jobs",
+    "evaluate_job",
+    "accept_job",
+    "perform_job",
+    "submit_work",
+    "check_payment",
+    "request_payment",
+    "get_financial_state",
+    "record_decision"
+  ]
+}

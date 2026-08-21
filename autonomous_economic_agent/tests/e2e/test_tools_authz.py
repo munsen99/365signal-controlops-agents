@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import json
 from decimal import Decimal
 from pathlib import Path
 from uuid import uuid4
@@ -496,6 +497,41 @@ def test_pre_tool_call_blocks_aliases_and_tenth_tool() -> None:
     assert "AEA_CONTROL_TOKEN" not in src
     assert "AEA_SIGNER" not in src
     assert "AEA_WALLET_DEBIT" not in src
+
+
+def test_plugin_handlers_accept_hermes_positional_argument_dict(monkeypatch) -> None:
+    import importlib.util
+
+    plugin = Path(__file__).resolve().parents[2] / "hermes_plugin" / "__init__.py"
+    spec = importlib.util.spec_from_file_location("economic_hermes_plugin_handler", plugin)
+    assert spec and spec.loader
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    captured = {}
+    monkeypatch.setattr(mod, "_post_tool", lambda name, body: captured.update(name=name, body=body) or {"ok": True})
+    result = mod._handler_for("find_jobs")({"limit": 8, "url": "http://forbidden"})
+    assert json.loads(result) == {"ok": True}
+    assert captured == {"name": "find_jobs", "body": {"limit": 8}}
+
+
+def test_lmstudio_wire_messages_have_valid_content(monkeypatch) -> None:
+    from autonomous_economic_agent.tests.e2e.lmstudio_preflight import (
+        request_body,
+        validate_messages,
+    )
+
+    tool_result = json.dumps({"ok": True, "code": "OK"})
+    messages = request_body(with_tools=True)["messages"] + [
+        {
+            "role": "assistant",
+            "content": "Calling an observation tool.",
+            "tool_calls": [{"id": "call-1", "type": "function", "function": {"name": "get_financial_state", "arguments": "{}"}}],
+        },
+        {"role": "tool", "tool_call_id": "call-1", "name": "get_financial_state", "content": tool_result},
+    ]
+    validate_messages(messages)
+    with pytest.raises(ValueError, match="invalid content type dict"):
+        validate_messages([{"role": "tool", "content": {"ok": True}}])
 
 
 def test_create_app_rejects_debit_and_hmac(freeze_dir: Path) -> None:

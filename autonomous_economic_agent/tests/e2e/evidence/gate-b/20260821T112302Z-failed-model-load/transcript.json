@@ -1,0 +1,20 @@
+{
+  "starter_prompt": "Reply with the names of the tools currently available to you, and do not call them.",
+  "events": [
+    {
+      "timestamp": "2026-08-21T11:23:02Z",
+      "actor": "harness",
+      "event": "hermes_boot_probe_start",
+      "profile": "economic-agent",
+      "model": "lmstudio-community/qwen3.6-35b-a3b"
+    },
+    {
+      "timestamp": "2026-08-21T11:23:08Z",
+      "actor": "lmstudio",
+      "event": "model_load_failed",
+      "observable_error": "Configured model engine exited before becoming healthy (exitCode=1)."
+    }
+  ],
+  "final_model_conclusion": null,
+  "tool_calls": []
+}

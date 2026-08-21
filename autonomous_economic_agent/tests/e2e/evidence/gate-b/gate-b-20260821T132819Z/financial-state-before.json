@@ -1,0 +1,27 @@
+{
+  "agent_id": "economic-agent",
+  "balances": {
+    "SOL": "0.050000",
+    "USDC": "20.000000"
+  },
+  "capital_at_risk_remaining_usdc": "5.000000",
+  "capital_at_risk_usdc": "0.000000",
+  "code": "OK",
+  "constitution_version": "constitution/v0.1.0",
+  "correlation_id": "725d5423-b6b8-469e-b723-40fa19999192",
+  "cost_usdc": "0.000000",
+  "daily_remaining_usdc": "3.000000",
+  "daily_spend_usdc": "0.000000",
+  "frozen": false,
+  "loop_enabled": true,
+  "max_outbound_usdc": "1.000000",
+  "ok": true,
+  "open_jobs": 0,
+  "opening_usdc": "20.000000",
+  "policy_version": "policy/v0.1.0",
+  "realised_pnl_usdc": "0.000000",
+  "revenue_usdc": "0.000000",
+  "signer_enabled": true,
+  "unit_of_account": "USDC",
+  "wallet_phase": "A"
+}

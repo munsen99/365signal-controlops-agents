@@ -43,7 +43,7 @@ class HttpMarketplace:
             raise MarketplaceError(HttpCode.NETWORK_FAILURE)
         if body.get("ok") is False:
             raise MarketplaceError(str(body.get("code") or HttpCode.MARKETPLACE_UNAVAILABLE))
-        return body
+        return {key: value for key, value in body.items() if key not in {"ok", "code"}}
 
     def _post(self, path: str, json: dict[str, Any]) -> dict[str, Any]:
         try:
@@ -57,28 +57,28 @@ class HttpMarketplace:
             raise MarketplaceError(HttpCode.NETWORK_FAILURE)
         if body.get("ok") is False:
             raise MarketplaceError(str(body.get("code") or HttpCode.MARKETPLACE_UNAVAILABLE))
-        return body
+        return {key: value for key, value in body.items() if key not in {"ok", "code"}}
 
     def discover(self, *, limit: int, cursor: str | None) -> DiscoverPage:
-        q = f"/v1/jobs?limit={limit}"
+        q = f"/v1/marketplace/jobs?limit={limit}"
         if cursor:
             q += f"&cursor={cursor}"
         return DiscoverPage.model_validate(self._get(q))
 
     def lookup(self, external_reference: str) -> DiscoveredJob:
-        body = self._get(f"/v1/jobs/{external_reference}")
+        body = self._get(f"/v1/marketplace/jobs/{external_reference}")
         job = body.get("job") or body
         return DiscoveredJob.model_validate(job)
 
     def get_requirements(self, external_reference: str) -> Requirements:
-        return Requirements.model_validate(self._get(f"/v1/jobs/{external_reference}/requirements"))
+        return Requirements.model_validate(self._get(f"/v1/marketplace/jobs/{external_reference}/requirements"))
 
     def get_payment_terms(self, external_reference: str) -> PaymentTerms:
-        return PaymentTerms.model_validate(self._get(f"/v1/jobs/{external_reference}/terms"))
+        return PaymentTerms.model_validate(self._get(f"/v1/marketplace/jobs/{external_reference}/payment-terms"))
 
     def accept(self, external_reference: str, *, idempotency_key: str) -> AcceptResult:
         return AcceptResult.model_validate(
-            self._post(f"/v1/jobs/{external_reference}/accept", {"idempotency_key": idempotency_key})
+            self._post(f"/v1/marketplace/jobs/{external_reference}/accept", {"idempotency_key": idempotency_key})
         )
 
     def submit(
@@ -91,7 +91,7 @@ class HttpMarketplace:
     ) -> SubmitResult:
         return SubmitResult.model_validate(
             self._post(
-                f"/v1/jobs/{external_reference}/submit",
+                f"/v1/marketplace/jobs/{external_reference}/submit",
                 {
                     "artefact_digest": artefact_digest,
                     "artefact_uri": artefact_uri,
@@ -101,10 +101,10 @@ class HttpMarketplace:
         )
 
     def get_status(self, external_reference: str) -> JobStatus:
-        return JobStatus.model_validate(self._get(f"/v1/jobs/{external_reference}/status"))
+        return JobStatus.model_validate(self._get(f"/v1/marketplace/jobs/{external_reference}/status"))
 
     def verify_payment(self, external_reference: str) -> PaymentClaim:
-        return PaymentClaim.model_validate(self._get(f"/v1/jobs/{external_reference}/payment"))
+        return PaymentClaim.model_validate(self._get(f"/v1/marketplace/jobs/{external_reference}/payment"))
 
     def get_counterparty(self, external_reference: str) -> Counterparty:
-        return Counterparty.model_validate(self._get(f"/v1/jobs/{external_reference}/counterparty"))
+        return Counterparty.model_validate(self._get(f"/v1/marketplace/jobs/{external_reference}/counterparty"))

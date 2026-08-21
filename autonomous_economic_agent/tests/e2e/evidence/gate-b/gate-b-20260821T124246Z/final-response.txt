@@ -1,0 +1,13 @@
+All tools are failing with the same handler error — including `record_decision`. This is a complete tool infrastructure failure. I cannot execute any part of my work cycle, and I cannot even record the abort decision.
+
+**Cycle 1 Status: ABORTED (infrastructure failure)**
+
+- **Financial state:** Could not retrieve
+- **Jobs discovered:** None (tool unavailable)
+- **Work performed:** None
+- **Revenue/Costs:** $0 / $0
+- **Treasury status:** Unknown (could not read)
+
+The error `TypeError: _handler_for.<locals>.handler() takes 0 positional arguments but 1 was given` affects every tool I attempted. This is a systemic issue with the Hermes agent runtime or tool binding layer, not something I can work around per my operational constraints.
+
+**Action required:** The supervisor or operator needs to investigate and fix the tool handler infrastructure before any further economic cycles can proceed. Until then, no economic activity should be attempted as all tools are non-functional.

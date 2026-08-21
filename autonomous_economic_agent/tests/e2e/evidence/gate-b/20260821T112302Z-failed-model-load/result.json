@@ -1,0 +1,22 @@
+{
+  "run_id": "20260821T112302Z-failed-model-load",
+  "gate": "M1 Gate B",
+  "result": "FAIL",
+  "failure_class": "infrastructure",
+  "failure_code": "CONFIGURED_MODEL_UNAVAILABLE",
+  "failure": "LM Studio could not start the configured model engine; no economic tool call or human economic intervention occurred.",
+  "configured_model": "lmstudio-community/qwen3.6-35b-a3b",
+  "provider": "lmstudio",
+  "endpoint": "http://127.0.0.1:1234/v1",
+  "hermes_version": "0.18.2",
+  "constitution_version": "constitution/v0.1.0",
+  "profile": "economic-agent",
+  "tool_registry_count": 9,
+  "tool_registry_exact": true,
+  "model_session_started": false,
+  "economic_tool_calls": 0,
+  "human_economic_intervention": false,
+  "secrets_present": false,
+  "start_timestamp": "2026-08-21T11:23:02Z",
+  "end_timestamp": "2026-08-21T11:23:08Z"
+}

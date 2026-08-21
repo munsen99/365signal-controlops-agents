@@ -239,7 +239,7 @@ class MarketplaceService:
         elif action == "counterparty":
             payload = self._adapter.get_counterparty(ref).model_dump(mode="json")
         elif action == "":
-            payload = self._adapter.get_status(ref).model_dump(mode="json")
+            payload = self._adapter.lookup(ref).model_dump(mode="json")
         else:
             await _send_json(
                 send,

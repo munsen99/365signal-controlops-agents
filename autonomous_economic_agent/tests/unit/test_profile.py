@@ -64,8 +64,10 @@ def test_run_input_has_no_job_selection_hints() -> None:
         assert needle.lower() not in lowered
     data = yaml.safe_load(text)
     assert data["agent_id"] == "economic-agent"
-    assert "find_jobs" in data["instructions"]
-    assert "Do not invent job IDs" in data["instructions"]
+    assert "autonomous economic work cycle" in data["instructions"]
+    assert "available tools" in data["instructions"]
+    for tool in NINE_TOOLS:
+        assert tool not in data["instructions"]
 
 
 def test_compose_symlink_points_at_canonical_file() -> None:

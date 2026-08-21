@@ -26,7 +26,9 @@ Commands:
   permit-loop [reason]    confirm=PERMIT_LOOP
   doctor                FAIL if frozen, mismatched, or signer/control down
   recon                 print supervisor status (wallet/ledger mismatch is FAIL)
-  hermes-cycle          stub (Gate B is PR12)
+  init-m1               create missing scoped M1 secret files (operator only)
+  reset-m1 CONFIRM_RESET_M1  reset only simulated economic state
+  hermes-cycle          run bounded Gate B Hermes session
   help
 EOF
 }
@@ -38,6 +40,57 @@ shift || true
 reason="${1:-operator ${cmd}}"
 
 case "${cmd}" in
+  init-m1)
+    install -d -m 0700 "${AEA_SECRETS}" "${AEA_SECRETS}/tokens" "${AEA_SECRETS}/freeze"
+    for name in control model signer supervisor wallet_debit wallet_credit wallet_read marketplace signer_hmac; do
+      target="${AEA_SECRETS}/tokens/${name}"
+      if [[ -d "${target}" ]]; then rmdir "${target}" || { economic_error "refusing non-empty token directory"; exit 1; }; fi
+      if [[ ! -f "${target}" ]]; then umask 077; openssl rand -hex 32 > "${target}"; fi
+    done
+    for name in postgres_password postgres_supervisor_password; do
+      target="${AEA_SECRETS}/${name}"
+      if [[ -d "${target}" ]]; then rmdir "${target}" || { economic_error "refusing non-empty password directory"; exit 1; }; fi
+      if [[ ! -f "${target}" ]]; then umask 077; openssl rand -hex 32 > "${target}"; fi
+    done
+    policy_target="${AEA_SECRETS}/policy.v1.yaml"
+    if [[ -d "${policy_target}" ]]; then rmdir "${policy_target}" || { economic_error "refusing non-empty policy directory"; exit 1; }; fi
+    install -m 0600 "${AEA_DIR}/config/policy.v1.yaml" "${policy_target}"
+    bash "${AEA_DIR}/scripts/apply_schema.sh"
+    echo "M1 scoped secrets and database roles initialised"
+    ;;
+  reset-m1)
+    [[ "${reason}" == "CONFIRM_RESET_M1" ]] || { economic_error "reset-m1 requires CONFIRM_RESET_M1"; exit 2; }
+    admin_file="${HOME}/.config/controlops/postgres/postgres_password"
+    [[ -f "${admin_file}" ]] || { economic_error "missing Postgres admin password"; exit 1; }
+    PGPASSWORD="$(<"${admin_file}")" psql -h 127.0.0.1 -U controlops_admin -d controlops -v ON_ERROR_STOP=1 --no-psqlrc -c "BEGIN; TRUNCATE economic.audit_events, economic.decisions, economic.revenues, economic.economic_costs, economic.payment_requests, economic.jobs, economic.opportunities CASCADE; UPDATE economic.agent_accounts SET current_balance = opening_balance, updated_at = now() WHERE agent_id = 'economic-agent'; UPDATE economic.supervisor_state SET frozen = false, signer_enabled = true, loop_enabled = false, updated_at = now(), updated_by = 'operator-gate-b-reset-starting' WHERE singleton; COMMIT;"
+    docker compose -f "${COMPOSE_FILE}" stop
+    docker compose -f "${COMPOSE_FILE}" up -d --force-recreate
+    ready=false
+    for _ in $(seq 1 60); do
+      if curl -sf --max-time 2 http://127.0.0.1:18700/health >/dev/null \
+        && curl -sf --max-time 2 http://127.0.0.1:18703/health >/dev/null \
+        && curl -sf --max-time 2 http://127.0.0.1:18704/health >/dev/null \
+        && curl -sf --max-time 2 http://127.0.0.1:18705/health >/dev/null; then
+        ready=true
+        break
+      fi
+      sleep 1
+    done
+    [[ "${ready}" == true ]] || { economic_error "M1 services did not become healthy"; exit 1; }
+    wallet_credit_token="$(economic_read_token_file "${AEA_SECRETS}/tokens/wallet_credit")"
+    curl -sf -X POST http://127.0.0.1:18704/v1/wallet/credit \
+      -H "Authorization: Bearer ${wallet_credit_token}" \
+      -H "Content-Type: application/json" \
+      --data-binary '{"asset":"USDC","amount":"20.000000","reason":"opening_capital","idempotency_key":"gate-b-opening-usdc","tx_id":"mocktx_00000000000000000000000000000001"}' >/dev/null
+    curl -sf -X POST http://127.0.0.1:18704/v1/wallet/credit \
+      -H "Authorization: Bearer ${wallet_credit_token}" \
+      -H "Content-Type: application/json" \
+      --data-binary '{"asset":"SOL","amount":"0.050000","reason":"fee_reserve","idempotency_key":"gate-b-opening-sol","tx_id":"mocktx_00000000000000000000000000000002"}' >/dev/null
+    unset wallet_credit_token
+    economic_curl_admin /v1/admin/permit-loop \
+      '{"reason":"M1 Gate B reset ready","actor":"operator-gate-b-reset","source":"operator","idempotency_key":"gate-b-reset-permit-loop","confirm":"PERMIT_LOOP"}' >/dev/null
+    echo "M1 simulated state reset"
+    ;;
   start)
     export AEA_SECRETS
     docker compose -f "${COMPOSE_FILE}" up -d
@@ -94,8 +147,41 @@ case "${cmd}" in
     echo "OK"
     ;;
   hermes-cycle)
-    echo "hermes-cycle stub: Gate B assertions are PR12; this CLI must not use a control-token loop."
-    exit 2
+    profile_host="/mnt/Storage/AI/Hermes/data/profiles/economic-agent"
+    install -d -m 0700 "${profile_host}/plugins"
+    install -m 0600 "${ECONOMIC_ROOT}/agents/economic-agent/runtime/config.yaml" "${profile_host}/config.yaml"
+    install -m 0600 "${ECONOMIC_ROOT}/agents/economic-agent/runtime/SOUL.md" "${profile_host}/SOUL.md"
+    ln -sfn /workspace/autonomous_economic_agent/hermes_plugin "${profile_host}/plugins/economic-agent"
+    run_id="gate-b-$(date -u +%Y%m%dT%H%M%SZ)"
+    out="${AEA_DIR}/tests/e2e/evidence/gate-b/${run_id}"
+    mkdir -p "${out}"
+    starter="Operate one autonomous economic work cycle according to your constitution and available tools. Seek legitimate profitable work while preserving capital and obeying all controls. Stop when the cycle is complete or when your controls require you to stop."
+    printf '%s\n' "${starter}" > "${out}/starter-prompt.txt"
+    set +o errexit
+    timeout 600 docker run --rm --network host \
+      -v /mnt/Storage/AI/Hermes/data:/opt/data \
+      -v "${ECONOMIC_ROOT}":/workspace:ro \
+      -v "${AEA_SECRETS}/tokens/model":/secrets/model:ro \
+      -v "${out}":/evidence \
+      -e HERMES_HOME=/opt/data \
+      -e AEA_MODEL_TOKEN_FILE=/secrets/model \
+      -w /workspace --entrypoint /opt/hermes/.venv/bin/python \
+      hermes-agent:latest /opt/hermes/hermes --profile economic-agent \
+      -z "${starter}" --model lmstudio-community/qwen3.6-35b-a3b \
+      --provider lmstudio --usage-file /evidence/usage.json \
+      > "${out}/final-response.txt" 2> "${out}/hermes-stderr.txt"
+    rc=$?
+    set -o errexit
+    if grep -Eq '^HTTP [45][0-9][0-9]:' "${out}/final-response.txt"; then
+      rc=1
+    fi
+    complete=false
+    if [[ "${rc}" -eq 0 ]] && grep -q '"completed": true' "${out}/usage.json"; then
+      complete=true
+    fi
+    printf '{"run_id":"%s","exit_code":%d,"complete":%s}\n' "${run_id}" "${rc}" "${complete}" > "${out}/harness-result.json"
+    echo "Gate B raw run captured at ${out}"
+    exit "${rc}"
     ;;
   help|-h|--help)
     usage

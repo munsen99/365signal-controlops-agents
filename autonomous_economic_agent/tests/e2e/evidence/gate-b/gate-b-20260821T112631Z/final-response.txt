@@ -1,0 +1,1 @@
+HTTP 400: Failed to load model "lmstudio-community/qwen3.6-35b-a3b". Error: Engine protocol runtime llama-server for AKzxG46m359Lc13j6ntODY9M exited before becoming healthy. exitCode=1, signal=null

@@ -246,10 +246,18 @@ def _post_tool(name: str, body: dict[str, Any]) -> dict[str, Any]:
 def _handler_for(name: str):
     allowed = _SCHEMA_PROPS[name]
 
-    def handler(**kwargs: Any) -> dict[str, Any]:
+    def handler(arguments: dict[str, Any] | None = None, **kwargs: Any) -> str:
+        supplied: dict[str, Any] = {}
+        if isinstance(arguments, dict):
+            supplied.update(arguments)
+        supplied.update(kwargs)
         # Reject model-smuggled URL/header/method fields by dropping unknowns.
-        body = {k: v for k, v in kwargs.items() if k in allowed}
-        return _post_tool(name, body)
+        body = {k: v for k, v in supplied.items() if k in allowed}
+        # Hermes forwards plugin return values verbatim as OpenAI ``tool``
+        # message content.  The wire contract requires that content to be a
+        # string (not a Python mapping), including for LM Studio's compatible
+        # endpoint.
+        return json.dumps(_post_tool(name, body), ensure_ascii=False, sort_keys=True)
 
     handler.__name__ = f"handle_{name}"
     return handler

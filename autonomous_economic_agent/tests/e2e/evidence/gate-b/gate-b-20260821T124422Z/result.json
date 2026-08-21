@@ -1,0 +1,1 @@
+{"run_id":"gate-b-20260821T124422Z","result":"FAIL","classification":"HERMES_LMSTUDIO_REQUEST_SCHEMA","reason":"tool result content was an object instead of a JSON string"}
