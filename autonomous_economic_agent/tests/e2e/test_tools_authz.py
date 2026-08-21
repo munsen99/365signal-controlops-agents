@@ -13,11 +13,35 @@ import pytest
 from pydantic import ValidationError
 
 from aea import NINE_TOOLS
+from aea.config import load_policy
 from aea.control.app import create_app
 from aea.control.schemas import GetFinancialStateRequest, RequestPaymentRequest
+from aea.ledger.service import LedgerService
 from aea.marketplace.mock import MockMarketplace
 from aea.tools_client.http import ToolClient
 from aea.wallet.mock import MockWallet
+
+ADMIN_PW = Path.home() / ".config/controlops/postgres/postgres_password"
+
+
+def _postgres_up() -> bool:
+    if not ADMIN_PW.is_file():
+        return False
+    try:
+        import psycopg
+
+        conn = psycopg.connect(
+            host="127.0.0.1",
+            port=5432,
+            dbname="controlops",
+            user="controlops_admin",
+            password=ADMIN_PW.read_text(encoding="utf-8").rstrip("\n"),
+            connect_timeout=3,
+        )
+        conn.close()
+        return True
+    except Exception:
+        return False
 
 MODEL = "model-token-pr8"
 CONTROL = "control-token-pr8"
@@ -49,7 +73,31 @@ def market(wallet: MockWallet) -> MockMarketplace:
 
 
 @pytest.fixture
-def app(freeze_dir: Path, market: MockMarketplace, wallet: MockWallet):
+def conn():
+    if not _postgres_up():
+        pytest.skip("controlops Postgres is not reachable")
+    import psycopg
+    from psycopg.rows import dict_row
+
+    c = psycopg.connect(
+        host="127.0.0.1",
+        port=5432,
+        dbname="controlops",
+        user="controlops_admin",
+        password=ADMIN_PW.read_text(encoding="utf-8").rstrip("\n"),
+    )
+    c.row_factory = dict_row
+    c.execute("SET ROLE economic_app")
+    c.execute("SET search_path TO economic")
+    try:
+        yield c
+        c.rollback()
+    finally:
+        c.close()
+
+
+@pytest.fixture
+def app(freeze_dir: Path, market: MockMarketplace, wallet: MockWallet, conn):
     return create_app(
         model_token=MODEL,
         freeze_path=freeze_dir / "FREEZE",
@@ -59,6 +107,9 @@ def app(freeze_dir: Path, market: MockMarketplace, wallet: MockWallet):
         credit_token=CREDIT,
         marketplace_token=MARKET,
         wallet_get_tx=wallet.get_tx,
+        wallet_balances=wallet.get_balances,
+        ledger=LedgerService(conn, policy=load_policy()),
+        auto_commit=False,
     )
 
 

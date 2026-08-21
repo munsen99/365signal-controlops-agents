@@ -32,3 +32,22 @@ def authorize_model_tools(
         if other and compare_digest(token, other):
             return HttpCode.FORBIDDEN
     return HttpCode.UNAUTHENTICATED
+
+
+def authorize_control_only(
+    token: str | None,
+    *,
+    control_token: str,
+    known_rejected: tuple[str, ...] = (),
+) -> HttpCode | None:
+    """POST /v1/payment-requests is control-token only. Model is FORBIDDEN."""
+    if not control_token:
+        return HttpCode.UNAUTHENTICATED
+    if token is None:
+        return HttpCode.UNAUTHENTICATED
+    if compare_digest(token, control_token):
+        return None
+    for other in known_rejected:
+        if other and compare_digest(token, other):
+            return HttpCode.FORBIDDEN
+    return HttpCode.UNAUTHENTICATED

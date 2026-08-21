@@ -14,6 +14,7 @@ import httpx
 import pytest
 from aea.config import load_policy
 from aea.control.app import create_app as create_control_app
+from aea.ledger.service import LedgerService
 from aea.ledger.errors import LedgerError
 from aea.ledger.models import CostCreate, OpportunityCreate, JobAccept
 from aea.ledger.service import LedgerService
@@ -160,7 +161,32 @@ def signer_stack(wallet, wallet_app, freeze_dir, loaded, store):
 
 
 @pytest.fixture
-def control_app(freeze_dir, wallet, store):
+def pg_ledger():
+    if not _postgres_up():
+        yield None
+        return
+    import psycopg
+    from psycopg.rows import dict_row
+
+    c = psycopg.connect(
+        host="127.0.0.1",
+        port=5432,
+        dbname="controlops",
+        user="controlops_admin",
+        password=ADMIN_PW.read_text(encoding="utf-8").rstrip("\n"),
+    )
+    c.row_factory = dict_row
+    c.execute("SET ROLE economic_app")
+    c.execute("SET search_path TO economic")
+    try:
+        yield LedgerService(c, policy=load_policy())
+        c.rollback()
+    finally:
+        c.close()
+
+
+@pytest.fixture
+def control_app(freeze_dir, wallet, store, pg_ledger):
     def state_reader():
         row = store.load()
         if row is None:
@@ -179,7 +205,10 @@ def control_app(freeze_dir, wallet, store):
         supervisor_token=SUPERVISOR,
         marketplace_token=MARKET,
         wallet_get_tx=wallet.get_tx,
+        wallet_balances=wallet.get_balances,
         state_reader=state_reader,
+        ledger=pg_ledger,
+        auto_commit=False,
     )
 
 
@@ -288,6 +317,8 @@ def _accept_profitable(control_app) -> str:
     found = _request(
         control_app, "POST", "/v1/tools/find_jobs", json={"limit": 20}, headers=_auth(MODEL)
     ).json()
+    if not found.get("jobs"):
+        pytest.skip("durable ledger required for job tools")
     oid = next(j["opportunity_id"] for j in found["jobs"] if j["external_reference"] == PROFITABLE)
     job = _request(
         control_app,

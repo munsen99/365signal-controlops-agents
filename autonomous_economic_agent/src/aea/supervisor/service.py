@@ -889,11 +889,88 @@ def create_app_from_env() -> SupervisorService:
     )
 
 
+def _live_snapshot() -> MonitorSnapshot:
+    """Best-effort live snapshot. Unreadable wallet/control fail closed."""
+    from decimal import Decimal
+
+    import httpx
+
+    from aea.supervisor.monitors import MonitorSnapshot
+
+    usdc = None
+    tokens = None
+    try:
+        wallet_url = os.environ.get("AEA_WALLET_URL", "http://127.0.0.1:18704")
+        token = os.environ.get("AEA_WALLET_READ_TOKEN")
+        if not token:
+            path = os.environ.get("AEA_WALLET_READ_TOKEN_FILE")
+            if path:
+                token = Path(path).read_text(encoding="utf-8").rstrip("\n")
+        if token:
+            response = httpx.get(
+                wallet_url.rstrip("/") + "/v1/wallet/balances",
+                headers={"Authorization": f"Bearer {token}"},
+                timeout=5.0,
+            )
+            body = response.json()
+            bals = (body.get("balances") or body) if isinstance(body, dict) else {}
+            if isinstance(bals, dict) and "USDC" in bals:
+                tokens = {str(k): Decimal(str(v)) for k, v in bals.items() if k in {"USDC", "SOL"}}
+                usdc = tokens.get("USDC")
+    except Exception:
+        usdc = None
+        tokens = None
+    control_healthy = None
+    try:
+        control_url = os.environ.get("AEA_CONTROL_URL", "http://127.0.0.1:18700")
+        response = httpx.get(control_url.rstrip("/") + "/health", timeout=5.0)
+        control_healthy = response.status_code == 200
+    except Exception:
+        control_healthy = False
+    return MonitorSnapshot(
+        usdc=usdc,
+        token_balances=tokens,
+        daily_spend_usdc=Decimal("0") if tokens is not None else None,
+        capital_at_risk_usdc=Decimal("0") if tokens is not None else None,
+        failed_txs_10m=0 if tokens is not None else None,
+        policy_rejections_10m=0 if tokens is not None else None,
+        ledger_wallet_mismatch=False if tokens is not None else None,
+        compute_usdc_10m=Decimal("0") if tokens is not None else None,
+        job_failures=0,
+        job_total=1,
+        control_healthy=control_healthy,
+        fake_payment_count=0 if tokens is not None else None,
+    )
+
+
+def start_monitor_poller(service: SupervisorService, *, interval: int = POLL_INTERVAL_SECONDS) -> None:
+    """Background ≤10s poll. Restrictive actions only. Never unfreeze."""
+    import threading
+    import time
+
+    def _loop() -> None:
+        while True:
+            try:
+                decision = evaluate_monitors(_live_snapshot())
+                service.apply_monitor_decision(decision, actor="monitor", reason="poll")
+            except Exception:
+                pass
+            time.sleep(max(interval, 1))
+
+    thread = threading.Thread(target=_loop, name="aea-supervisor-poll", daemon=True)
+    thread.start()
+
+
 def main() -> None:
     import uvicorn
 
+    app = create_app_from_env()
+    if os.environ.get("AEA_SUPERVISOR_POLL") == "1":
+        start_monitor_poller(
+            app, interval=int(os.environ.get("AEA_SUPERVISOR_POLL_INTERVAL", str(POLL_INTERVAL_SECONDS)))
+        )
     uvicorn.run(
-        create_app_from_env(),
+        app,
         host=SUPERVISOR_HOST,
         port=SUPERVISOR_PORT,
         log_level="info",

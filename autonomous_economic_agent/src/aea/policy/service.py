@@ -1,8 +1,9 @@
 """Policy HTTP process. ASGI on 127.0.0.1:18701. Wraps the pure engine.
 
-Auth: POST /v1/evaluate requires AEA_CONTROL_TOKEN. AEA_MODEL_TOKEN is
-FORBIDDEN. GET /health is unauthenticated. No LLM, wallet, Solana, signer,
-or supervisor clients.
+Auth: POST /v1/evaluate and POST /v1/execute-payment require
+AEA_CONTROL_TOKEN. AEA_MODEL_TOKEN is FORBIDDEN. GET /health is
+unauthenticated. Policy is the HMAC caller of the signer (M0 §4.4 / §11).
+No wallet debit credential. No LLM. No Solana.
 """
 
 from __future__ import annotations
@@ -18,10 +19,13 @@ from typing import Any
 from pydantic import ValidationError
 
 from aea.config import LoadedPolicy, load_policy
+from aea.payment.schemas import ExecutePaymentRequest
 from aea.policy.engine import evaluate
 from aea.policy.reasons import HttpCode
+from aea.policy.signer_client import PolicySignerClient
+from aea.signer.backend import ApprovedRequest
 from aea.signer.freeze import inspect_freeze
-from aea.types import PolicyInput, PolicyOutput
+from aea.types import PolicyInput, PolicyOutput, format_amount
 
 POLICY_PORT = 18701
 POLICY_HOST = "127.0.0.1"
@@ -133,15 +137,20 @@ class PolicyService:
         freeze_path: Path | None = None,
         now: datetime | None = None,
         db_frozen_reader: Callable[[], Any] | None = None,
+        signer_client: PolicySignerClient | None = None,
+        debit_token: str | None = None,
     ) -> None:
         if not control_token:
             raise ValueError("control_token is required")
+        if debit_token:
+            raise ValueError("policy must not hold wallet debit credentials")
         self._control_token = control_token
         self._model_token = model_token
         self._loaded = loaded
         self._freeze_path = freeze_path
         self._now = now
         self._db_frozen_reader = db_frozen_reader
+        self._signer_client = signer_client
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
@@ -154,6 +163,9 @@ class PolicyService:
             return
         if method == "POST" and path == "/v1/evaluate":
             await self._evaluate(headers, receive, send)
+            return
+        if method == "POST" and path == "/v1/execute-payment":
+            await self._execute_payment(headers, receive, send)
             return
         await _send_json(
             send,
@@ -213,19 +225,120 @@ class PolicyService:
                 payload={"ok": False, "code": HttpCode.VALIDATION_ERROR},
             )
             return
+        output = self._run_engine(inp)
+        status, body = _envelope(output)
+        await _send_json(send, status=status, payload=body)
+
+    def _run_engine(self, inp: PolicyInput) -> PolicyOutput:
         if self._freeze_is_frozen():
             inp = inp.model_copy(update={"frozen": True})
         dest = self._loaded.classify(inp.destination)
         now = self._now or datetime.now(timezone.utc)
-        output = evaluate(
+        return evaluate(
             inp,
             self._loaded.document,
             effective_policy_hash=self._loaded.policy_hash,
             now=now,
             destination=dest,
         )
-        status, body = _envelope(output)
-        await _send_json(send, status=status, payload=body)
+
+    async def _execute_payment(self, headers: dict[str, str], receive: Receive, send: Send) -> None:
+        denied = self._authorize(headers)
+        if denied is HttpCode.UNAUTHENTICATED:
+            await _send_json(
+                send, status=401, payload={"ok": False, "code": HttpCode.UNAUTHENTICATED}
+            )
+            return
+        if denied is HttpCode.FORBIDDEN:
+            await _send_json(
+                send, status=403, payload={"ok": False, "code": HttpCode.FORBIDDEN}
+            )
+            return
+        raw = await _read_body(receive)
+        try:
+            payload = json.loads(raw.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            await _send_json(
+                send, status=400, payload={"ok": False, "code": HttpCode.VALIDATION_ERROR}
+            )
+            return
+        if not isinstance(payload, dict):
+            await _send_json(
+                send, status=400, payload={"ok": False, "code": HttpCode.VALIDATION_ERROR}
+            )
+            return
+        try:
+            req = ExecutePaymentRequest.model_validate(payload)
+        except ValidationError:
+            await _send_json(
+                send, status=400, payload={"ok": False, "code": HttpCode.VALIDATION_ERROR}
+            )
+            return
+        output = self._run_engine(req)
+        if output.decision != "approved" or output.approved_amount is None:
+            status, body = _envelope(output)
+            body["request_id"] = str(req.request_id)
+            body["tx_id"] = None
+            await _send_json(send, status=status, payload=body)
+            return
+        if self._signer_client is None:
+            await _send_json(
+                send,
+                status=200,
+                payload={
+                    "ok": False,
+                    "code": HttpCode.SIGNER_UNAVAILABLE,
+                    "decision": "approved",
+                    "request_id": str(req.request_id),
+                    "tx_id": None,
+                    "reason_code": HttpCode.SIGNER_UNAVAILABLE,
+                },
+            )
+            return
+        if req.job_id is None:
+            await _send_json(
+                send,
+                status=200,
+                payload={
+                    "ok": False,
+                    "code": HttpCode.VALIDATION_ERROR,
+                    "decision": "approved",
+                    "request_id": str(req.request_id),
+                    "reason_code": "NO_JOB_PURPOSE",
+                },
+            )
+            return
+        approved = ApprovedRequest.model_validate(
+            {
+                "request_id": str(req.request_id),
+                "amount": format_amount(req.amount),
+                "asset": req.asset,
+                "destination": req.destination,
+                "purpose": req.purpose,
+                "job_id": str(req.job_id),
+                "policy_version": output.policy_version,
+                "policy_hash": output.policy_hash,
+                "approved_amount": format_amount(output.approved_amount),
+                "approved_at": req.approved_at.isoformat(),
+                "correlation_id": str(output.correlation_id),
+            }
+        )
+        signed = await self._signer_client.sign(approved)
+        body = {
+            "ok": signed.ok,
+            "code": signed.code if not signed.ok else HttpCode.OK,
+            "decision": "approved",
+            "reason_code": signed.reason_code if not signed.ok else None,
+            "request_id": str(req.request_id),
+            "tx_id": signed.tx_id,
+            "canonical_hash": signed.canonical_hash,
+            "policy_version": output.policy_version,
+            "policy_hash": output.policy_hash,
+            "approved_amount": format_amount(output.approved_amount),
+            "replay": signed.replay,
+            "correlation_id": str(output.correlation_id),
+        }
+        await _send_json(send, status=200, payload=body)
 
     def _freeze_is_frozen(self) -> bool:
         db_kw: dict[str, Any] = {}
@@ -255,6 +368,7 @@ def create_app(
     freeze_path: Path | None = None,
     now: datetime | None = None,
     db_frozen_reader: Callable[[], Any] | None = None,
+    signer_client: PolicySignerClient | None = None,
 ) -> PolicyService:
     return PolicyService(
         control_token=control_token,
@@ -263,6 +377,7 @@ def create_app(
         freeze_path=freeze_path,
         now=now,
         db_frozen_reader=db_frozen_reader,
+        signer_client=signer_client,
     )
 
 
@@ -273,11 +388,21 @@ def create_app_from_env() -> PolicyService:
     model = _read_token("AEA_MODEL_TOKEN", "AEA_MODEL_TOKEN_FILE")
     freeze_raw = os.environ.get("AEA_FREEZE_PATH")
     freeze_path = Path(freeze_raw) if freeze_raw else None
+    hmac_key = _read_token("AEA_SIGNER_HMAC_KEY", "AEA_SIGNER_HMAC_KEY_FILE")
+    signer_token = _read_token("AEA_SIGNER_TOKEN", "AEA_SIGNER_TOKEN_FILE")
+    signer_client = None
+    if hmac_key and signer_token:
+        signer_client = PolicySignerClient(
+            hmac_key=hmac_key,
+            signer_token=signer_token,
+            signer_sock=os.environ.get("AEA_SIGNER_SOCK"),
+        )
     return create_app(
         control_token=control,
         loaded=load_policy(),
         model_token=model,
         freeze_path=freeze_path,
+        signer_client=signer_client,
     )
 
 

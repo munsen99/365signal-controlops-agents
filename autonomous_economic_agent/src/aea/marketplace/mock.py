@@ -101,6 +101,9 @@ class MockMarketplace:
             }
         )
 
+    def lookup(self, external_reference: str) -> DiscoveredJob:
+        return self._discovered(self._job(external_reference))
+
     def discover(self, *, limit: int = 10, cursor: str | None = None) -> DiscoverPage:
         if limit < 1 or limit > 20:
             raise MarketplaceError(HttpCode.VALIDATION_ERROR, "limit must be 1-20")

@@ -1,7 +1,7 @@
 """Model-facing control ASGI on 127.0.0.1:18700.
 
-POST /v1/tools/{nine} accepts AEA_MODEL_TOKEN only. Spend tools do not call
-the signer or wallet debit (PR10). request_payment returns SIGNER_UNAVAILABLE.
+POST /v1/tools/{nine} accepts AEA_MODEL_TOKEN only. POST /v1/payment-requests
+accepts AEA_CONTROL_TOKEN only. Control never holds signer HMAC or debit.
 """
 
 from __future__ import annotations
@@ -18,16 +18,17 @@ from pydantic import ValidationError
 
 from aea import AGENT_ID, CONSTITUTION_VERSION, NINE_TOOLS, POLICY_VERSION
 from aea.config import LoadedPolicy, load_policy
-from aea.control.auth import authorize_model_tools, bearer_token
+from aea.control.auth import authorize_control_only, authorize_model_tools, bearer_token
 from aea.control.freeze import inspect_control_safety, tool_is_mutating
-from aea.control.schemas import TOOL_MODELS
+from aea.control.plane import EconomicPlane
+from aea.control.schemas import TOOL_MODELS, RequestPaymentRequest
 from aea.hashing import canonical_json_hash
+from aea.ledger.service import LedgerService
 from aea.marketplace.mock import MockMarketplace
 from aea.marketplace.protocol import MarketplaceAdapter, MarketplaceError
+from aea.payment.service import PaymentOrchestrator
 from aea.policy.reasons import HttpCode, ReasonCode
-from aea.policy.risk import JobAcceptInput, evaluate_job_accept
 from aea.types import format_amount
-from aea.workers.registry import run_worker
 
 CONTROL_HOST = "127.0.0.1"
 CONTROL_PORT = 18700
@@ -111,6 +112,10 @@ def _status_for(code: str) -> int:
         HttpCode.RUNAWAY_COST: 200,
         HttpCode.SIGNER_DISABLED: 200,
         HttpCode.LOOP_STOPPED: 200,
+        HttpCode.POLICY_REJECTED: 200,
+        HttpCode.DUPLICATE_PAYMENT: 200,
+        HttpCode.TIMEOUT: 200,
+        HttpCode.WALLET_LEDGER_MISMATCH: 200,
         ReasonCode.MARGIN_NOT_MET: 200,
         ReasonCode.PROHIBITED_TOKEN: 200,
         ReasonCode.OPEN_JOBS_EXCEEDED: 200,
@@ -136,6 +141,10 @@ class ControlService:
         marketplace_token: str | None = None,
         wallet_get_tx: WalletTxLookup | None = None,
         state_reader: Callable[[], Any] | None = None,
+        ledger: LedgerService | None = None,
+        payment: PaymentOrchestrator | None = None,
+        wallet_balances: Callable[[], Any] | None = None,
+        auto_commit: bool = True,
     ) -> None:
         if not model_token:
             raise ValueError("model_token is required")
@@ -151,11 +160,22 @@ class ControlService:
         self._policy = policy
         self._wallet_get_tx = wallet_get_tx
         self._state_reader = state_reader
-        self._opps: dict[str, dict[str, Any]] = {}
-        self._jobs: dict[str, dict[str, Any]] = {}
-        self._decisions: list[dict[str, Any]] = []
+        self._ledger = ledger
+        self._payment = payment
+        self._wallet_balances = wallet_balances
+        self._auto_commit = auto_commit
         self._idem: dict[tuple[str, str], tuple[str, dict[str, Any]]] = {}
-        self._payments: list[dict[str, Any]] = []
+        self._plane = None
+        if ledger is not None:
+            self._plane = EconomicPlane(
+                ledger=ledger,
+                marketplace=marketplace,
+                policy=policy,
+                safety=self._safety,
+                payment=payment,
+                wallet_get_tx=wallet_get_tx,
+                wallet_balances=wallet_balances,
+            )
 
     def _secrets(self) -> tuple[str, ...]:
         return tuple(
@@ -189,6 +209,9 @@ class ControlService:
         if method == "POST" and path.startswith("/v1/tools/"):
             name = path.removeprefix("/v1/tools/")
             await self._tool(name, headers, receive, send)
+            return
+        if method == "POST" and path == "/v1/payment-requests":
+            await self._payment_requests(headers, receive, send)
             return
         await _send_json(
             send,
@@ -295,7 +318,7 @@ class ControlService:
                 )
                 return
         try:
-            result = self._dispatch(name, req)
+            result = self._dispatch(name, req, correlation_id=headers.get("x-aea-correlation-id") or str(uuid4()))
         except MarketplaceError as exc:
             code = exc.code if exc.code in {HttpCode.NETWORK_FAILURE, HttpCode.NOT_FOUND, HttpCode.CONFLICT} else HttpCode.MARKETPLACE_UNAVAILABLE
             result = {"ok": False, "code": code}
@@ -303,6 +326,11 @@ class ControlService:
             result = {"ok": False, "code": HttpCode.INTERNAL_ERROR}
         result.setdefault("ok", result.get("code") == HttpCode.OK)
         result.setdefault("correlation_id", headers.get("x-aea-correlation-id") or str(uuid4()))
+        if self._ledger is not None and self._auto_commit:
+            if str(result.get("code")) == HttpCode.INTERNAL_ERROR:
+                self._ledger.rollback()
+            else:
+                self._ledger.commit()
         if idem:
             stored = dict(result)
             self._idem[(name, idem)] = (canonical_json_hash(body), stored)
@@ -334,273 +362,44 @@ class ControlService:
                 }
         return inspect_control_safety(self._freeze_path, **db_kw)
 
-    def _dispatch(self, name: str, req: Any) -> dict[str, Any]:
-        return {
-            "find_jobs": self._find_jobs,
-            "evaluate_job": self._evaluate_job,
-            "accept_job": self._accept_job,
-            "perform_job": self._perform_job,
-            "submit_work": self._submit_work,
-            "check_payment": self._check_payment,
-            "request_payment": self._request_payment,
-            "get_financial_state": self._get_financial_state,
-            "record_decision": self._record_decision,
-        }[name](req)
-
-    def _find_jobs(self, req: Any) -> dict[str, Any]:
-        page = self._marketplace.discover(limit=req.limit, cursor=req.cursor)
-        jobs = []
-        for item in page.jobs:
-            existing = next(
-                (o for o in self._opps.values() if o["external_reference"] == item.external_reference),
-                None,
-            )
-            oid = existing["opportunity_id"] if existing else str(uuid4())
-            dumped = item.model_dump(mode="json")
-            row = {
-                "opportunity_id": oid,
-                "external_reference": dumped["external_reference"],
-                "title": dumped["title"],
-                "description_hash": dumped["description_hash"],
-                "untrusted_description_preview": dumped["untrusted_description_preview"],
-                "expected_revenue": dumped["expected_revenue"],
-                "payment_asset": dumped["payment_asset"],
-                "payment_terms": dumped["payment_terms"],
-                "counterparty_id": dumped["counterparty_id"],
-                "counterparty_reputation": dumped["counterparty_reputation"],
-                "flags": dumped["flags"],
-                "estimated_cost": dumped["estimated_cost"],
-                "worker": dumped["worker"],
-            }
-            self._opps[oid] = row
-            jobs.append({k: v for k, v in row.items() if k not in {"estimated_cost", "worker"}})
-        return {
-            "ok": True,
-            "code": HttpCode.OK,
-            "adapter": "mock",
-            "jobs": jobs,
-            "next_cursor": page.next_cursor,
-        }
-
-    def _evaluate_job(self, req: Any) -> dict[str, Any]:
-        opp = self._opps.get(str(req.opportunity_id))
-        if opp is None:
-            return {"ok": False, "code": HttpCode.NOT_FOUND}
-        revenue = Decimal(str(opp["expected_revenue"]["amount"]))
-        cost = Decimal(str(opp["estimated_cost"]["amount"]))
-        asset = opp["payment_asset"]
-        flags = list(opp.get("flags") or [])
-        blockers: list[str] = []
-        if "prompt_injection" in flags:
-            blockers.append(HttpCode.PROMPT_INJECTION_DETECTED)
-        if asset != "USDC":
-            blockers.append(ReasonCode.PROHIBITED_TOKEN)
-        hist = Decimal("0.90")
-        open_jobs = sum(1 for j in self._jobs.values() if j["status"] in {"accepted", "performing", "performed", "submitted"})
-        accept = evaluate_job_accept(
-            JobAcceptInput.model_validate(
-                {
-                    "expected_revenue_usdc": format_amount(revenue),
-                    "expected_cost_usdc": format_amount(cost),
-                    "probability_payment": float(hist),
-                    "open_jobs": open_jobs,
-                    "frozen": self._safety().frozen,
-                    "asset": "USDC" if asset == "USDC" else "USDC",
-                }
-            ),
-            self._policy.document,
-        )
-        if asset != "USDC":
-            accept = accept.model_copy(
-                update={"allowed": False, "reason_code": ReasonCode.PROHIBITED_TOKEN}
-            )
-        if blockers and HttpCode.PROMPT_INJECTION_DETECTED in blockers:
-            accept = accept.model_copy(
-                update={"allowed": False, "reason_code": HttpCode.PROMPT_INJECTION_DETECTED}
-            )
-        margin = revenue - cost
-        bps = int((margin / cost) * 10000) if cost > 0 else 0
-        rec = "accept" if accept.allowed and not blockers else "decline"
-        return {
-            "ok": True,
-            "code": HttpCode.OK,
-            "opportunity_id": str(req.opportunity_id),
-            "expected_revenue": opp["expected_revenue"],
-            "expected_costs": [
-                {"category": "compute", "amount": format_amount(cost), "asset": "USDC"}
-            ],
-            "expected_cost_total": {"amount": format_amount(cost), "asset": "USDC"},
-            "expected_margin": {"amount": format_amount(margin), "asset": "USDC"},
-            "expected_margin_bps": bps,
-            "probability_completion": 0.95,
-            "probability_payment": float(hist),
-            "risk_score": 0.12,
-            "risk_factors": flags or ["none"],
-            "meets_required_margin": accept.meets_required_margin,
-            "policy_blockers": blockers,
-            "recommendation": rec,
-            "accept_allowed": accept.allowed,
-            "reason_code": accept.reason_code,
-        }
-
-    def _accept_job(self, req: Any) -> dict[str, Any]:
-        evaluation = self._evaluate_job(type("R", (), {"opportunity_id": req.opportunity_id})())
-        if evaluation.get("code") == HttpCode.NOT_FOUND:
-            return evaluation
-        opp = self._opps[str(req.opportunity_id)]
-        if evaluation.get("policy_blockers"):
-            code = evaluation["policy_blockers"][0]
-            return {"ok": False, "code": code, "opportunity_id": str(req.opportunity_id)}
-        if not evaluation.get("accept_allowed"):
-            return {
-                "ok": False,
-                "code": evaluation.get("reason_code") or ReasonCode.MARGIN_NOT_MET,
-                "opportunity_id": str(req.opportunity_id),
-            }
-        try:
-            self._marketplace.accept(
-                opp["external_reference"], idempotency_key=req.idempotency_key
-            )
-        except MarketplaceError as exc:
-            return {"ok": False, "code": exc.code}
-        job_id = str(uuid4())
-        self._jobs[job_id] = {
-            "job_id": job_id,
-            "opportunity_id": str(req.opportunity_id),
-            "external_reference": opp["external_reference"],
-            "status": "accepted",
-            "deliverable_digest": None,
-            "expected_revenue": opp["expected_revenue"],
-            "payment_asset": opp["payment_asset"],
-        }
-        return {
-            "ok": True,
-            "code": HttpCode.OK,
-            "job_id": job_id,
-            "opportunity_id": str(req.opportunity_id),
-            "status": "accepted",
-        }
-
-    def _perform_job(self, req: Any) -> dict[str, Any]:
-        job = self._jobs.get(str(req.job_id))
-        if job is None:
-            return {"ok": False, "code": HttpCode.NOT_FOUND}
-        result = run_worker(job["external_reference"])
-        job["deliverable_digest"] = result.digest
-        job["status"] = "performed" if result.ok else "failed"
-        if not result.ok:
-            return {
-                "ok": False,
-                "code": result.reason_code or HttpCode.JOB_FAILED,
-                "job_id": job["job_id"],
-                "deliverable_digest": result.digest,
-            }
-        return {
-            "ok": True,
-            "code": HttpCode.OK,
-            "job_id": job["job_id"],
-            "status": "performed",
-            "deliverable_digest": result.digest,
-        }
-
-    def _submit_work(self, req: Any) -> dict[str, Any]:
-        job = self._jobs.get(str(req.job_id))
-        if job is None:
-            return {"ok": False, "code": HttpCode.NOT_FOUND}
-        if not job.get("deliverable_digest"):
-            return {"ok": False, "code": HttpCode.CONFLICT}
-        try:
-            submitted = self._marketplace.submit(
-                job["external_reference"],
-                artefact_digest=job["deliverable_digest"],
-                artefact_uri=f"artefacts/{job['deliverable_digest']}",
-                idempotency_key=req.idempotency_key,
-            )
-        except MarketplaceError as exc:
-            return {"ok": False, "code": exc.code}
-        job["status"] = "submitted"
-        return {
-            "ok": True,
-            "code": HttpCode.OK,
-            "job_id": job["job_id"],
-            "status": "submitted",
-            "transaction_reference": submitted.transaction_reference,
-            "credited": submitted.credited,
-        }
-
-    def _check_payment(self, req: Any) -> dict[str, Any]:
-        job = self._jobs.get(str(req.job_id))
-        if job is None:
-            return {"ok": False, "code": HttpCode.NOT_FOUND}
-        claim = self._marketplace.verify_payment(job["external_reference"])
-        dumped = claim.model_dump(mode="json")
-        if dumped["status"] != "paid":
+    def _dispatch(self, name: str, req: Any, *, correlation_id: str) -> dict[str, Any]:
+        if self._plane is not None:
+            return self._plane.dispatch(name, req, correlation_id=correlation_id)
+        if name == "get_financial_state":
+            return self._snapshot_without_ledger()
+        if name == "find_jobs":
+            page = self._marketplace.discover(limit=req.limit, cursor=req.cursor)
+            jobs = []
+            for item in page.jobs:
+                dumped = item.model_dump(mode="json")
+                jobs.append(
+                    {
+                        "opportunity_id": str(uuid4()),
+                        "external_reference": dumped["external_reference"],
+                        "title": dumped["title"],
+                        "description_hash": dumped["description_hash"],
+                        "untrusted_description_preview": dumped["untrusted_description_preview"],
+                        "expected_revenue": dumped["expected_revenue"],
+                        "payment_asset": dumped["payment_asset"],
+                        "payment_terms": dumped["payment_terms"],
+                        "counterparty_id": dumped["counterparty_id"],
+                        "counterparty_reputation": dumped["counterparty_reputation"],
+                        "flags": dumped["flags"],
+                    }
+                )
             return {
                 "ok": True,
                 "code": HttpCode.OK,
-                "status": dumped["status"],
-                "verified": False,
-                "transaction_reference": dumped.get("transaction_reference"),
+                "adapter": "mock",
+                "jobs": jobs,
+                "next_cursor": page.next_cursor,
             }
-        tx_id = dumped.get("transaction_reference")
-        wallet_tx = self._wallet_get_tx(tx_id) if (self._wallet_get_tx and tx_id) else None
-        if wallet_tx is None:
-            return {
-                "ok": False,
-                "code": HttpCode.FAKE_PAYMENT,
-                "status": "fake",
-                "verified": False,
-                "transaction_reference": tx_id,
-            }
-        return {
-            "ok": True,
-            "code": HttpCode.OK,
-            "status": "settled",
-            "verified": True,
-            "transaction_reference": tx_id,
-        }
+        if name == "record_decision":
+            return {"ok": True, "code": HttpCode.OK, "decision_id": str(uuid4()), "applied": False}
+        return {"ok": False, "code": HttpCode.INTERNAL_ERROR}
 
-    def _request_payment(self, req: Any) -> dict[str, Any]:
-        job = self._jobs.get(str(req.job_id))
-        if job is None:
-            return {"ok": False, "code": HttpCode.NOT_FOUND}
-        request_id = str(uuid4())
-        self._payments.append(
-            {
-                "request_id": request_id,
-                "job_id": str(req.job_id),
-                "amount": format_amount(req.amount),
-                "asset": req.asset,
-                "destination": req.destination,
-                "purpose": req.purpose,
-                "policy_decision": "pending",
-            }
-        )
-        if not self._safety().signer_enabled:
-            return {
-                "ok": False,
-                "code": HttpCode.SIGNER_DISABLED,
-                "request_id": request_id,
-                "policy_decision": "pending",
-                "reason_code": HttpCode.SIGNER_DISABLED,
-                "transaction_reference": None,
-            }
-        return {
-            "ok": False,
-            "code": HttpCode.SIGNER_UNAVAILABLE,
-            "request_id": request_id,
-            "policy_decision": "pending",
-            "reason_code": None,
-            "transaction_reference": None,
-        }
-
-    def _get_financial_state(self, req: Any) -> dict[str, Any]:
+    def _snapshot_without_ledger(self) -> dict[str, Any]:
         safety = self._safety()
-        open_jobs = sum(
-            1
-            for j in self._jobs.values()
-            if j["status"] in {"accepted", "performing", "performed", "submitted"}
-        )
         limits = self._policy.document.limits
         return {
             "ok": True,
@@ -621,22 +420,71 @@ class ControlService:
             "capital_at_risk_usdc": "0.000000",
             "capital_at_risk_remaining_usdc": format_amount(limits.max_capital_at_risk_usdc),
             "max_outbound_usdc": format_amount(limits.max_outbound_usdc),
-            "open_jobs": open_jobs,
+            "open_jobs": 0,
             "unit_of_account": "USDC",
             "constitution_version": CONSTITUTION_VERSION,
         }
 
-    def _record_decision(self, req: Any) -> dict[str, Any]:
-        row = req.model_dump(mode="json")
-        row["decision_id"] = str(uuid4())
-        self._decisions.append(row)
-        return {
-            "ok": True,
-            "code": HttpCode.OK,
-            "decision_id": row["decision_id"],
-            "applied": False,
-        }
-
+    async def _payment_requests(self, headers: dict[str, str], receive: Receive, send: Send) -> None:
+        denied = authorize_control_only(
+            bearer_token(headers),
+            control_token=self._control or "",
+            known_rejected=tuple(
+                t for t in (self._model, self._supervisor, self._credit, self._marketplace_token) if t
+            ),
+        )
+        if denied:
+            await _send_json(
+                send,
+                status=_status_for(denied),
+                payload={"ok": False, "code": denied},
+                secrets=self._secrets(),
+            )
+            return
+        raw = await _read_body(receive)
+        try:
+            payload = json.loads(raw.decode("utf-8")) if raw else {}
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            await _send_json(
+                send,
+                status=400,
+                payload={"ok": False, "code": HttpCode.VALIDATION_ERROR},
+                secrets=self._secrets(),
+            )
+            return
+        try:
+            req = RequestPaymentRequest.model_validate(payload)
+        except ValidationError:
+            await _send_json(
+                send,
+                status=400,
+                payload={"ok": False, "code": HttpCode.VALIDATION_ERROR},
+                secrets=self._secrets(),
+            )
+            return
+        if self._plane is None:
+            await _send_json(
+                send,
+                status=200,
+                payload={"ok": False, "code": HttpCode.SIGNER_UNAVAILABLE},
+                secrets=self._secrets(),
+            )
+            return
+        result = self._plane.request_payment(
+            req, correlation_id=headers.get("x-aea-correlation-id") or str(uuid4())
+        )
+        result.setdefault("ok", result.get("code") == HttpCode.OK)
+        if self._ledger is not None and self._auto_commit:
+            if str(result.get("code")) == HttpCode.INTERNAL_ERROR:
+                self._ledger.rollback()
+            else:
+                self._ledger.commit()
+        await _send_json(
+            send,
+            status=_status_for(str(result.get("code") or HttpCode.OK)),
+            payload=result,
+            secrets=self._secrets(),
+        )
 
 def create_app(
     *,
@@ -650,6 +498,13 @@ def create_app(
     credit_token: str | None = None,
     marketplace_token: str | None = None,
     state_reader: Callable[[], Any] | None = None,
+    ledger: LedgerService | None = None,
+    payment: PaymentOrchestrator | None = None,
+    wallet_balances: Callable[[], Any] | None = None,
+    auto_commit: bool = True,
+    hmac_key: str | None = None,
+    debit_token: str | None = None,
+    signer_token: str | None = None,
 ) -> ControlService:
     return ControlService(
         model_token=model_token,
@@ -662,6 +517,13 @@ def create_app(
         marketplace_token=marketplace_token,
         wallet_get_tx=wallet_get_tx,
         state_reader=state_reader,
+        ledger=ledger,
+        payment=payment,
+        wallet_balances=wallet_balances,
+        auto_commit=auto_commit,
+        hmac_key=hmac_key,
+        debit_token=debit_token,
+        signer_token=signer_token,
     )
 
 
@@ -682,11 +544,82 @@ def create_app_from_env() -> ControlService:
     freeze = os.environ.get("AEA_FREEZE_PATH")
     if not freeze:
         raise ValueError("AEA_FREEZE_PATH is required")
+    control = _read_token("AEA_CONTROL_TOKEN", "AEA_CONTROL_TOKEN_FILE")
+    from aea.ledger.service import LedgerService
+    from aea.payment.service import policy_execute_via_http
+
+    ledger = LedgerService.from_env()
+    payment = None
+    policy_url = os.environ.get("AEA_POLICY_URL")
+    wallet_url = os.environ.get("AEA_WALLET_URL", "http://127.0.0.1:18704")
+    read_token = _read_token("AEA_WALLET_READ_TOKEN", "AEA_WALLET_READ_TOKEN_FILE")
+    market_url = os.environ.get("AEA_MARKETPLACE_URL")
+    market_token = _read_token("AEA_MARKETPLACE_TOKEN", "AEA_MARKETPLACE_TOKEN_FILE")
+
+    def _wallet_balances() -> dict:
+        from decimal import Decimal
+
+        import httpx
+
+        if not read_token:
+            return {}
+        try:
+            response = httpx.get(
+                wallet_url.rstrip("/") + "/v1/wallet/balances",
+                headers={"Authorization": f"Bearer {read_token}"},
+                timeout=10.0,
+            )
+            body = response.json()
+        except Exception:
+            return {}
+        bals = body.get("balances") if isinstance(body, dict) else None
+        if not isinstance(bals, dict):
+            bals = body if isinstance(body, dict) else {}
+        out = {}
+        for key, value in bals.items():
+            if key in {"USDC", "SOL"}:
+                out[key] = Decimal(str(value))
+        return out
+
+    def _wallet_tx(tx_id: str):
+        import httpx
+
+        if not read_token:
+            return None
+        try:
+            response = httpx.get(
+                wallet_url.rstrip("/") + f"/v1/wallet/tx/{tx_id}",
+                headers={"Authorization": f"Bearer {read_token}"},
+                timeout=10.0,
+            )
+            body = response.json()
+        except Exception:
+            return None
+        return body.get("tx") if isinstance(body, dict) else None
+
+    marketplace = None
+    if market_url and market_token:
+        from aea.marketplace.client import HttpMarketplace
+
+        marketplace = HttpMarketplace(market_url, market_token)
+    if control and policy_url:
+        payment = PaymentOrchestrator(
+            ledger=ledger,
+            policy=load_policy(),
+            policy_execute=policy_execute_via_http(policy_url, control),
+            wallet_balances=_wallet_balances,
+            control_token=control,
+        )
     return create_app(
         model_token=model,
         freeze_path=freeze,
-        control_token=_read_token("AEA_CONTROL_TOKEN", "AEA_CONTROL_TOKEN_FILE"),
-        marketplace_token=_read_token("AEA_MARKETPLACE_TOKEN", "AEA_MARKETPLACE_TOKEN_FILE"),
+        control_token=control,
+        marketplace=marketplace,
+        marketplace_token=market_token,
+        ledger=ledger,
+        payment=payment,
+        wallet_get_tx=_wallet_tx,
+        wallet_balances=_wallet_balances,
     )
 
 

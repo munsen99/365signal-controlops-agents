@@ -302,6 +302,38 @@ class LedgerService:
         if flags["frozen"] or not flags["readable"]:
             raise LedgerError(HttpCode.AGENT_FROZEN, "economic activity is frozen")
 
+    def outstanding_exposure_usdc(self, *, excluding_request_id: UUID | None = None) -> Decimal:
+        """M0 capital-at-risk: approved USDC outflow not yet settled.
+
+        Matches ``v_capital_at_risk.approved_unsettled_outflow``. The model
+        cannot supply this figure. ``excluding_request_id`` drops the row
+        under evaluation so recovery does not double-count it.
+        """
+        row = self._conn.execute(
+            """
+            SELECT COALESCE(SUM(pr.amount), 0) AS exposure
+              FROM payment_requests pr
+             WHERE pr.asset = 'USDC'
+               AND pr.policy_decision = 'approved'
+               AND pr.transaction_reference IS NULL
+               AND (%s::uuid IS NULL OR pr.request_id <> %s)
+            """,
+            (excluding_request_id, excluding_request_id),
+        ).fetchone()
+        if row is None:
+            raise LedgerError(HttpCode.INTERNAL_ERROR, "capital at risk unreadable")
+        return _dec(row["exposure"])
+
+    def cash_cost_count(self, request_id: UUID) -> int:
+        row = self._conn.execute(
+            """
+            SELECT count(*) AS n FROM economic_costs
+             WHERE payment_request_id = %s
+            """,
+            (request_id,),
+        ).fetchone()
+        return int(row["n"]) if row else 0
+
     def daily_spend_usdc(self) -> Decimal:
         row = self._conn.execute(
             """
@@ -455,6 +487,76 @@ class LedgerService:
         if row is None:
             raise LedgerError(HttpCode.NOT_FOUND, "job not found")
         return dict(row)
+
+    def get_opportunity(self, opportunity_id: UUID) -> dict[str, Any]:
+        row = self._conn.execute(
+            "SELECT * FROM opportunities WHERE opportunity_id = %s",
+            (opportunity_id,),
+        ).fetchone()
+        if row is None:
+            raise LedgerError(HttpCode.NOT_FOUND, "opportunity not found")
+        return dict(row)
+
+    def get_job_bundle(self, job_id: UUID) -> dict[str, Any]:
+        row = self._conn.execute(
+            """
+            SELECT j.*, o.external_reference, o.expected_revenue AS opp_revenue,
+                   o.expected_cost AS opp_cost, o.source, o.description_hash
+              FROM jobs j
+              JOIN opportunities o ON o.opportunity_id = j.opportunity_id
+             WHERE j.job_id = %s
+            """,
+            (job_id,),
+        ).fetchone()
+        if row is None:
+            raise LedgerError(HttpCode.NOT_FOUND, "job not found")
+        return dict(row)
+
+    def count_open_jobs(self) -> int:
+        row = self._conn.execute(
+            """
+            SELECT count(*) AS n FROM jobs
+             WHERE agent_id = %s AND status = ANY(%s)
+            """,
+            (self._agent_id, list(OPEN_JOB_STATUSES)),
+        ).fetchone()
+        return int(row["n"]) if row else 0
+
+    def get_payment_by_idempotency(self, key: str) -> dict[str, Any] | None:
+        row = self._conn.execute(
+            "SELECT * FROM payment_requests WHERE idempotency_key = %s",
+            (key,),
+        ).fetchone()
+        return dict(row) if row else None
+
+    def history_payment_rate(self, *, source: str, limit: int = 50) -> float | None:
+        rows = self._conn.execute(
+            """
+            SELECT j.status,
+                   EXISTS (
+                       SELECT 1 FROM revenues r
+                        WHERE r.job_id = j.job_id AND r.verified
+                   ) AS paid
+              FROM jobs j
+              JOIN opportunities o ON o.opportunity_id = j.opportunity_id
+             WHERE o.source = %s
+               AND j.status IN ('completed', 'failed')
+             ORDER BY j.accepted_at DESC NULLS LAST
+             LIMIT %s
+            """,
+            (source, limit),
+        ).fetchall()
+        if len(rows) < 4:
+            return None
+        completed = sum(1 for r in rows if r["status"] == "completed" and r["paid"])
+        denom = max(1, len(rows))
+        return completed / denom
+
+    def commit(self) -> None:
+        self._conn.commit()
+
+    def rollback(self) -> None:
+        self._conn.rollback()
 
     def transition_job(self, req: JobTransition) -> dict[str, Any]:
         def inner() -> dict[str, Any]:

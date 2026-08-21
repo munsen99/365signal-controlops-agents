@@ -1,12 +1,164 @@
 # Canonical Compose model for project controlops-economic.
-# Repo path ops/compose.economic.yaml is a symlink to this file (PR 1).
+# Repo path ops/compose.economic.yaml is a symlink to this file.
 #
-# Services, host-network topology, unix-socket signer, and per-file secret
-# mounts are added in PR 10. Do not attach a live wallet or live marketplace
-# here. wallet_phase remains A until gated M2 PRs.
+# Do not attach a live wallet or live marketplace here. wallet_phase remains A
+# until gated M2 PRs.
 #
-# PR5 secret: tokens/signer_hmac (AEA_SIGNER_HMAC_KEY) is mounted only into
-# economic-policy and economic-signer. Never into economic-control, Hermes,
-# wallet, marketplace, or supervisor. Distinct from tokens/signer and all
-# wallet_* tokens.
+# network_mode: host. Binds are 127.0.0.1. Per-file secret mounts only.
+# Never mount the whole ~/.config/controlops/economic tree or tokens/.
+# Control never mounts signer, signer_hmac, wallet_debit, or supervisor.
+# Policy is the HMAC caller (tokens/signer + tokens/signer_hmac).
+# Signer is the sole wallet-debit caller.
+
 name: controlops-economic
+
+x-aea-build: &aea-build
+  context: ..
+  dockerfile: ops/Dockerfile.economic
+
+services:
+  economic-control:
+    build: *aea-build
+    command: ["python", "-m", "aea.control.app"]
+    network_mode: host
+    environment:
+      AEA_CONTROL_TOKEN_FILE: /secrets/tokens/control
+      AEA_MODEL_TOKEN_FILE: /secrets/tokens/model
+      AEA_WALLET_READ_TOKEN_FILE: /secrets/tokens/wallet_read
+      AEA_MARKETPLACE_TOKEN_FILE: /secrets/tokens/marketplace
+      AEA_POSTGRES_PASSWORD_FILE: /secrets/postgres_password
+      AEA_FREEZE_PATH: /secrets/freeze/FREEZE
+      AEA_POLICY_URL: http://127.0.0.1:18701
+      AEA_WALLET_URL: http://127.0.0.1:18704
+      AEA_MARKETPLACE_URL: http://127.0.0.1:18705
+      AEA_BIND: 127.0.0.1:18700
+    volumes:
+      - ${AEA_SECRETS:-/home/proteu5/.config/controlops/economic}/tokens/control:/secrets/tokens/control:ro
+      - ${AEA_SECRETS:-/home/proteu5/.config/controlops/economic}/tokens/model:/secrets/tokens/model:ro
+      - ${AEA_SECRETS:-/home/proteu5/.config/controlops/economic}/tokens/wallet_read:/secrets/tokens/wallet_read:ro
+      - ${AEA_SECRETS:-/home/proteu5/.config/controlops/economic}/tokens/marketplace:/secrets/tokens/marketplace:ro
+      - ${AEA_SECRETS:-/home/proteu5/.config/controlops/economic}/postgres_password:/secrets/postgres_password:ro
+      - ${AEA_SECRETS:-/home/proteu5/.config/controlops/economic}/freeze:/secrets/freeze:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:18700/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 8
+
+  economic-policy:
+    build: *aea-build
+    command: ["python", "-m", "aea.policy.service"]
+    network_mode: host
+    group_add: ["aea-signpipe"]
+    environment:
+      AEA_BIND: 127.0.0.1:18701
+      AEA_SIGNER_SOCK: /run/aea/signer.sock
+      AEA_CONTROL_TOKEN_FILE: /secrets/tokens/control
+      AEA_SIGNER_TOKEN_FILE: /secrets/tokens/signer
+      AEA_SIGNER_HMAC_KEY_FILE: /secrets/tokens/signer_hmac
+      AEA_WALLET_READ_TOKEN_FILE: /secrets/tokens/wallet_read
+      AEA_POSTGRES_PASSWORD_FILE: /secrets/postgres_password
+      AEA_POLICY_FILE: /secrets/policy.v1.yaml
+      AEA_FREEZE_PATH: /secrets/freeze/FREEZE
+    volumes:
+      - ${AEA_SECRETS:-/home/proteu5/.config/controlops/economic}/tokens/control:/secrets/tokens/control:ro
+      - ${AEA_SECRETS:-/home/proteu5/.config/controlops/economic}/tokens/signer:/secrets/tokens/signer:ro
+      - ${AEA_SECRETS:-/home/proteu5/.config/controlops/economic}/tokens/signer_hmac:/secrets/tokens/signer_hmac:ro
+      - ${AEA_SECRETS:-/home/proteu5/.config/controlops/economic}/tokens/wallet_read:/secrets/tokens/wallet_read:ro
+      - ${AEA_SECRETS:-/home/proteu5/.config/controlops/economic}/postgres_password:/secrets/postgres_password:ro
+      - ${AEA_SECRETS:-/home/proteu5/.config/controlops/economic}/policy.v1.yaml:/secrets/policy.v1.yaml:ro
+      - ${AEA_SECRETS:-/home/proteu5/.config/controlops/economic}/freeze:/secrets/freeze:ro
+      - aea_run:/run/aea
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:18701/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 8
+
+  economic-signer:
+    build: *aea-build
+    command: ["python", "-m", "aea.signer.service"]
+    network_mode: host
+    group_add: ["aea-signpipe"]
+    environment:
+      AEA_SIGNER_SOCK: /run/aea/signer.sock
+      AEA_SIGNER_TOKEN_FILE: /secrets/tokens/signer
+      AEA_SIGNER_HMAC_KEY_FILE: /secrets/tokens/signer_hmac
+      AEA_WALLET_DEBIT_TOKEN_FILE: /secrets/tokens/wallet_debit
+      AEA_WALLET_URL: http://127.0.0.1:18704
+      AEA_FREEZE_PATH: /secrets/freeze/FREEZE
+      AEA_POLICY_VERSION: policy/v0.1.0
+    volumes:
+      - ${AEA_SECRETS:-/home/proteu5/.config/controlops/economic}/tokens/signer:/secrets/tokens/signer:ro
+      - ${AEA_SECRETS:-/home/proteu5/.config/controlops/economic}/tokens/signer_hmac:/secrets/tokens/signer_hmac:ro
+      - ${AEA_SECRETS:-/home/proteu5/.config/controlops/economic}/tokens/wallet_debit:/secrets/tokens/wallet_debit:ro
+      - ${AEA_SECRETS:-/home/proteu5/.config/controlops/economic}/freeze:/secrets/freeze:ro
+      - aea_run:/run/aea
+
+  economic-wallet:
+    build: *aea-build
+    command: ["python", "-m", "aea.wallet.service"]
+    network_mode: host
+    environment:
+      AEA_BIND: 127.0.0.1:18704
+      AEA_WALLET_DEBIT_TOKEN_FILE: /secrets/tokens/wallet_debit
+      AEA_WALLET_CREDIT_TOKEN_FILE: /secrets/tokens/wallet_credit
+      AEA_WALLET_READ_TOKEN_FILE: /secrets/tokens/wallet_read
+    volumes:
+      - ${AEA_SECRETS:-/home/proteu5/.config/controlops/economic}/tokens/wallet_debit:/secrets/tokens/wallet_debit:ro
+      - ${AEA_SECRETS:-/home/proteu5/.config/controlops/economic}/tokens/wallet_credit:/secrets/tokens/wallet_credit:ro
+      - ${AEA_SECRETS:-/home/proteu5/.config/controlops/economic}/tokens/wallet_read:/secrets/tokens/wallet_read:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:18704/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 8
+
+  economic-marketplace:
+    build: *aea-build
+    command: ["python", "-m", "aea.marketplace.service"]
+    network_mode: host
+    environment:
+      AEA_BIND: 127.0.0.1:18705
+      AEA_MARKETPLACE_TOKEN_FILE: /secrets/tokens/marketplace
+      AEA_WALLET_CREDIT_TOKEN_FILE: /secrets/tokens/wallet_credit
+      AEA_WALLET_URL: http://127.0.0.1:18704
+    volumes:
+      - ${AEA_SECRETS:-/home/proteu5/.config/controlops/economic}/tokens/marketplace:/secrets/tokens/marketplace:ro
+      - ${AEA_SECRETS:-/home/proteu5/.config/controlops/economic}/tokens/wallet_credit:/secrets/tokens/wallet_credit:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:18705/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 8
+
+  economic-supervisor:
+    build: *aea-build
+    command: ["python", "-m", "aea.supervisor.service"]
+    network_mode: host
+    environment:
+      AEA_BIND: 127.0.0.1:18703
+      AEA_SUPERVISOR_TOKEN_FILE: /secrets/tokens/supervisor
+      AEA_POSTGRES_SUPERVISOR_PASSWORD_FILE: /secrets/postgres_supervisor_password
+      AEA_POLICY_FILE: /secrets/policy.v1.yaml
+      AEA_FREEZE_PATH: /secrets/freeze/FREEZE
+      AEA_WALLET_READ_TOKEN_FILE: /secrets/tokens/wallet_read
+      AEA_WALLET_URL: http://127.0.0.1:18704
+      AEA_CONTROL_URL: http://127.0.0.1:18700
+      AEA_SUPERVISOR_POLL: "1"
+      AEA_SUPERVISOR_POLL_INTERVAL: "10"
+    volumes:
+      - ${AEA_SECRETS:-/home/proteu5/.config/controlops/economic}/tokens/supervisor:/secrets/tokens/supervisor:ro
+      - ${AEA_SECRETS:-/home/proteu5/.config/controlops/economic}/postgres_supervisor_password:/secrets/postgres_supervisor_password:ro
+      - ${AEA_SECRETS:-/home/proteu5/.config/controlops/economic}/policy.v1.yaml:/secrets/policy.v1.yaml:ro
+      - ${AEA_SECRETS:-/home/proteu5/.config/controlops/economic}/freeze:/secrets/freeze
+      - ${AEA_SECRETS:-/home/proteu5/.config/controlops/economic}/tokens/wallet_read:/secrets/tokens/wallet_read:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:18703/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 8
+
+volumes:
+  aea_run:
+    name: aea_run

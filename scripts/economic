@@ -1,0 +1,107 @@
+#!/usr/bin/env bash
+# Operator CLI for the economic plane. Never a model tool.
+# Tokens are read from files, never placed on the process command line as flags.
+
+set -o errexit
+set -o nounset
+set -o pipefail
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/lib/economic-common.sh
+source "${SCRIPT_DIR}/lib/economic-common.sh"
+
+usage() {
+  cat <<'EOF'
+Usage: scripts/economic <command> [args]
+
+Commands:
+  start                 docker compose up controlops-economic
+  stop                  docker compose stop
+  status                supervisor /health plus compose ps
+  freeze [reason]       POST /v1/admin/freeze-spend
+  unfreeze [reason]     POST /v1/admin/unfreeze confirm=UNFREEZE
+  disable-signer [reason]
+  enable-signer [reason]  confirm=ENABLE_SIGNER
+  stop-loop [reason]
+  permit-loop [reason]    confirm=PERMIT_LOOP
+  doctor                FAIL if frozen, mismatched, or signer/control down
+  recon                 print supervisor status (wallet/ledger mismatch is FAIL)
+  hermes-cycle          stub (Gate B is PR12)
+  help
+EOF
+}
+
+key_now() { printf '%s-%s' "$1" "$(date +%s)"; }
+
+cmd="${1:-help}"
+shift || true
+reason="${1:-operator ${cmd}}"
+
+case "${cmd}" in
+  start)
+    export AEA_SECRETS
+    docker compose -f "${COMPOSE_FILE}" up -d
+    ;;
+  stop)
+    docker compose -f "${COMPOSE_FILE}" stop
+    ;;
+  status)
+    curl -sS "${SUPERVISOR_URL}/health" || true
+    echo
+    docker compose -f "${COMPOSE_FILE}" ps || true
+    ;;
+  freeze)
+    economic_curl_admin /v1/admin/freeze-spend \
+      "{\"reason\":\"${reason}\",\"actor\":\"operator\",\"source\":\"operator\",\"idempotency_key\":\"$(key_now freeze)xxxx\"}"
+    echo
+    ;;
+  unfreeze)
+    economic_curl_admin /v1/admin/unfreeze \
+      "{\"reason\":\"${reason}\",\"actor\":\"operator\",\"source\":\"operator\",\"idempotency_key\":\"$(key_now unfrz)xxxx\",\"confirm\":\"UNFREEZE\"}"
+    echo
+    ;;
+  disable-signer)
+    economic_curl_admin /v1/admin/disable-signer \
+      "{\"reason\":\"${reason}\",\"actor\":\"operator\",\"source\":\"operator\",\"idempotency_key\":\"$(key_now disabl)xxx\"}"
+    echo
+    ;;
+  enable-signer)
+    economic_curl_admin /v1/admin/enable-signer \
+      "{\"reason\":\"${reason}\",\"actor\":\"operator\",\"source\":\"operator\",\"idempotency_key\":\"$(key_now enabl)xxxx\",\"confirm\":\"ENABLE_SIGNER\"}"
+    echo
+    ;;
+  stop-loop)
+    economic_curl_admin /v1/admin/stop-agent \
+      "{\"reason\":\"${reason}\",\"actor\":\"operator\",\"source\":\"operator\",\"idempotency_key\":\"$(key_now stoplp)xxx\"}"
+    echo
+    ;;
+  permit-loop)
+    economic_curl_admin /v1/admin/permit-loop \
+      "{\"reason\":\"${reason}\",\"actor\":\"operator\",\"source\":\"operator\",\"idempotency_key\":\"$(key_now permit)xxx\",\"confirm\":\"PERMIT_LOOP\"}"
+    echo
+    ;;
+  doctor|recon)
+    body="$(curl -sS "${SUPERVISOR_URL}/health" || echo '{"ok":false}')"
+    echo "${body}"
+    if echo "${body}" | grep -q '"frozen":true'; then
+      echo "FAIL frozen"
+      exit 1
+    fi
+    if ! curl -sf "${CONTROL_URL}/health" >/dev/null; then
+      echo "FAIL control down"
+      exit 1
+    fi
+    echo "OK"
+    ;;
+  hermes-cycle)
+    echo "hermes-cycle stub: Gate B assertions are PR12; this CLI must not use a control-token loop."
+    exit 2
+    ;;
+  help|-h|--help)
+    usage
+    ;;
+  *)
+    usage >&2
+    exit 2
+    ;;
+esac
