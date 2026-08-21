@@ -17,6 +17,9 @@ Check = Callable[[], str | None]
 
 
 def _canonical_hash(inp: PolicyInput, *, approved_amount: str, approved_at: datetime) -> str:
+    # Policy-engine hash only. Distinct from the signer canonical hash:
+    # this omits request_id and policy_hash. PR10 must not reuse this value
+    # as POST /v1/sign canonical_hash; use aea.signer.canonical_approved_hash.
     body = {
         "amount": format_amount(inp.amount),
         "approved_amount": approved_amount,

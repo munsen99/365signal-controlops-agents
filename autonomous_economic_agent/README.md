@@ -22,6 +22,25 @@ Hermes identity: `agents/economic-agent/` in the repository root.
 Wallet phase **A** (mock). No Solana imports, no live wallet, no live
 marketplace adapter. Those are gated later PRs.
 
+## Signer authentication (PR5)
+
+`POST /v1/sign` requires two factors, both held by the **policy** process:
+
+1. Bearer `AEA_SIGNER_TOKEN` (`~/.config/controlops/economic/tokens/signer`)
+2. `request_hmac`: HMAC-SHA256 of the canonical signer approval artifact
+   using `AEA_SIGNER_HMAC_KEY` (`~/.config/controlops/economic/tokens/signer_hmac`)
+
+The HMAC key is distinct from the signer bearer and from every wallet
+credential. Control, Hermes, and the model must never receive it. The
+signer verifies the MAC in constant time and fail-closes on a missing,
+malformed, or incorrect MAC before any wallet debit.
+
+The **signer canonical hash** includes `request_id` and `policy_hash`.
+It is **not** `PolicyOutput.canonical_request_hash` from the PR3 policy
+engine (that hash omits both). Later payment-path wiring (PR10) must
+construct the signer approval artifact with
+`aea.signer.canonical_approved_hash` and `aea.signer.compute_request_hmac`.
+
 ## Development
 
 ```bash

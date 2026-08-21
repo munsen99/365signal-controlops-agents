@@ -4,4 +4,9 @@
 # Services, host-network topology, unix-socket signer, and per-file secret
 # mounts are added in PR 10. Do not attach a live wallet or live marketplace
 # here. wallet_phase remains A until gated M2 PRs.
+#
+# PR5 secret: tokens/signer_hmac (AEA_SIGNER_HMAC_KEY) is mounted only into
+# economic-policy and economic-signer. Never into economic-control, Hermes,
+# wallet, marketplace, or supervisor. Distinct from tokens/signer and all
+# wallet_* tokens.
 name: controlops-economic

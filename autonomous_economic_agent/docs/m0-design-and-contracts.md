@@ -349,7 +349,7 @@ Canonical constitution is `autonomous_economic_agent/constitution/SOUL.md`. `age
 | `/home/proteu5/.config/controlops/economic/policy.v1.yaml` | Effective policy (copied from git at apply-time; not editable by agent) | **No** |
 | `/home/proteu5/.config/controlops/economic/signer.key` | Phase B/C key material. Absent in M1. | **No** |
 | `/home/proteu5/.config/controlops/economic/freeze/` | Always-present directory; file `FREEZE` inside means frozen | **No**. Bind-mounted **per service** (ro except supervisor rw). |
-| `/home/proteu5/.config/controlops/economic/tokens/<name>` | One file per scoped token. Compose bind-mounts **individual files**, never the `tokens/` directory as a whole. Hermes gets at most `tokens/model` (env or one-file mount). | **No** |
+| `/home/proteu5/.config/controlops/economic/tokens/<name>` | One file per scoped token. `signer_hmac` is the request HMAC key (policy + signer only; never control/Hermes). Compose bind-mounts **individual files**, never the `tokens/` directory as a whole. Hermes gets at most `tokens/model` (env or one-file mount). | **No** |
 | `/home/proteu5/.config/controlops/economic/postgres_password` | Password for role `economic_app` | **No** |
 | `/home/proteu5/.config/controlops/economic/postgres_supervisor_password` | Password for role `economic_supervisor` | **No** |
 | Docker volume `aea_run` → `/run/aea/` | `signer.sock` (0660, group `aea-signpipe`) | **No** — forbidden on the Hermes volume list |
@@ -590,7 +590,7 @@ Caller identity is the bearer token. Every HTTP route rejects missing/wrong scop
 | `POST /v1/payment-requests` | control `:18700` | `AEA_CONTROL_TOKEN` only | `AEA_MODEL_TOKEN` → `FORBIDDEN` (model uses `request_payment` tool, which calls this internally) |
 | `GET /health` (all) | each service | unauthenticated OK | — |
 | `POST /v1/evaluate` | policy `:18701` | `AEA_CONTROL_TOKEN` | `AEA_MODEL_TOKEN` |
-| `POST /v1/sign` | signer unix socket | `AEA_SIGNER_TOKEN` | `AEA_MODEL_TOKEN`, `AEA_CONTROL_TOKEN` |
+| `POST /v1/sign` | signer unix socket | `AEA_SIGNER_TOKEN` + `request_hmac` (HMAC-SHA256 over the signer approval artifact; key `AEA_SIGNER_HMAC_KEY`) | `AEA_MODEL_TOKEN`, `AEA_CONTROL_TOKEN`; missing/wrong HMAC |
 | `POST /v1/wallet/debit` | wallet `:18704` | `AEA_WALLET_DEBIT_TOKEN` | `AEA_MODEL_TOKEN`, `AEA_CONTROL_TOKEN`, `AEA_WALLET_READ_TOKEN`, `AEA_WALLET_CREDIT_TOKEN` |
 | `POST /v1/wallet/credit` | wallet `:18704` | `AEA_WALLET_CREDIT_TOKEN` | `AEA_MODEL_TOKEN`, `AEA_WALLET_DEBIT_TOKEN` |
 | `GET /v1/wallet/balances`, `GET /v1/wallet/tx/{id}` | wallet `:18704` | `AEA_WALLET_READ_TOKEN` | `AEA_MODEL_TOKEN` |
@@ -648,9 +648,9 @@ Six OS processes (Docker services in `controlops-economic`). Wallet is a **separ
 
 | Process | Container | User / group | Filesystem |
 | --- | --- | --- | --- |
-| `aea-control` | `economic-control` | host-mapped uid; **not** in group `aea-signpipe` | git tree ro; **only** `tokens/control`, `tokens/model` (**inbound verify only**, not an outbound client), `tokens/wallet_read`, `tokens/marketplace`, `postgres_password`, `freeze/` (ro). No `wallet_debit`, no `tokens/signer`, no `tokens/supervisor`, no `signer.key`. |
-| `aea-policy` | `economic-policy` | host-mapped uid **and** group `aea-signpipe` | **only** `policy.v1.yaml`, `tokens/control` (to validate inbound), `tokens/signer` (to call signer), `tokens/wallet_read`, `postgres_password`, `freeze/` (ro). No debit token, no `signer.key`. |
-| `aea-signer` | `economic-signer` | uid `aea-signer` if the image can create it; **always** group `aea-signpipe` | **only** `tokens/signer`, `tokens/wallet_debit`, `signer.key` (Phase B/C; absent in M1), `freeze/` (ro). Unix socket. **No** `/workspace`. |
+| `aea-control` | `economic-control` | host-mapped uid; **not** in group `aea-signpipe` | git tree ro; **only** `tokens/control`, `tokens/model` (**inbound verify only**, not an outbound client), `tokens/wallet_read`, `tokens/marketplace`, `postgres_password`, `freeze/` (ro). No `wallet_debit`, no `tokens/signer`, no `tokens/signer_hmac`, no `tokens/supervisor`, no `signer.key`. |
+| `aea-policy` | `economic-policy` | host-mapped uid **and** group `aea-signpipe` | **only** `policy.v1.yaml`, `tokens/control` (to validate inbound), `tokens/signer` (to call signer), `tokens/signer_hmac` (to MAC sign requests), `tokens/wallet_read`, `postgres_password`, `freeze/` (ro). No debit token, no `signer.key`. |
+| `aea-signer` | `economic-signer` | uid `aea-signer` if the image can create it; **always** group `aea-signpipe` | **only** `tokens/signer`, `tokens/signer_hmac` (to verify request HMAC), `tokens/wallet_debit`, `signer.key` (Phase B/C; absent in M1), `freeze/` (ro). Unix socket. **No** `/workspace`. |
 | `aea-wallet` | `economic-wallet` | host-mapped uid | mock state volume; **only** `tokens/wallet_debit`, `tokens/wallet_credit`, `tokens/wallet_read` (to validate inbound). No `signer.key`, no `tokens/model`/`supervisor`/`control`. |
 | `aea-marketplace` | `economic-marketplace` | host-mapped uid | mock fixtures; **only** `tokens/marketplace` (inbound) and `tokens/wallet_credit` (outbound settlement). |
 | `aea-supervisor` | `economic-supervisor` | host-mapped uid | **only** `tokens/supervisor`, `postgres_supervisor_password`, `policy.v1.yaml` (ro, limits), `freeze/` (**rw**). Zone 4 may write `FREEZE` but must **not** hold `wallet_debit` or `signer.key`. |
@@ -676,6 +676,7 @@ tokens/
   model
   control
   signer
+  signer_hmac                 # request HMAC key; policy + signer only
   supervisor
   wallet_debit
   wallet_read
@@ -710,7 +711,7 @@ services:
       - ${AEA_SECRETS}/tokens/marketplace:/secrets/tokens/marketplace:ro
       - ${AEA_SECRETS}/postgres_password:/secrets/postgres_password:ro
       - ${AEA_SECRETS}/freeze:/secrets/freeze:ro
-      # NOT mounted: wallet_debit, tokens/signer, supervisor, signer.key, aea_run
+      # NOT mounted: wallet_debit, tokens/signer, tokens/signer_hmac, supervisor, signer.key, aea_run
       # tokens/model is verifier-only; control must not ToolClient-call itself with it
     # never: /mnt/Storage/AI/Hermes/data or /workspace
   economic-policy:
@@ -721,6 +722,7 @@ services:
       AEA_SIGNER_SOCK: /run/aea/signer.sock
       AEA_CONTROL_TOKEN_FILE: /secrets/tokens/control
       AEA_SIGNER_TOKEN_FILE: /secrets/tokens/signer
+      AEA_SIGNER_HMAC_KEY_FILE: /secrets/tokens/signer_hmac
       AEA_WALLET_READ_TOKEN_FILE: /secrets/tokens/wallet_read
       AEA_POSTGRES_PASSWORD_FILE: /secrets/postgres_password
       AEA_POLICY_FILE: /secrets/policy.v1.yaml
@@ -728,12 +730,14 @@ services:
     volumes:
       - ${AEA_SECRETS}/tokens/control:/secrets/tokens/control:ro
       - ${AEA_SECRETS}/tokens/signer:/secrets/tokens/signer:ro
+      - ${AEA_SECRETS}/tokens/signer_hmac:/secrets/tokens/signer_hmac:ro
       - ${AEA_SECRETS}/tokens/wallet_read:/secrets/tokens/wallet_read:ro
       - ${AEA_SECRETS}/postgres_password:/secrets/postgres_password:ro
       - ${AEA_SECRETS}/policy.v1.yaml:/secrets/policy.v1.yaml:ro
       - ${AEA_SECRETS}/freeze:/secrets/freeze:ro
       - aea_run:/run/aea
-      # NOT mounted: wallet_debit, signer.key, supervisor, model
+      # NOT mounted: wallet_debit, signer.key, supervisor, model, tokens/model
+      # signer_hmac is required here (policy is the HMAC caller)
   economic-signer:
     network_mode: host
     group_add: ["aea-signpipe"]
@@ -741,11 +745,13 @@ services:
     environment:
       AEA_SIGNER_SOCK: /run/aea/signer.sock
       AEA_SIGNER_TOKEN_FILE: /secrets/tokens/signer
+      AEA_SIGNER_HMAC_KEY_FILE: /secrets/tokens/signer_hmac
       AEA_WALLET_DEBIT_TOKEN_FILE: /secrets/tokens/wallet_debit
       AEA_FREEZE_PATH: /secrets/freeze/FREEZE
       # AEA_SIGNER_KEY_FILE set only in Phase B/C
     volumes:
       - ${AEA_SECRETS}/tokens/signer:/secrets/tokens/signer:ro
+      - ${AEA_SECRETS}/tokens/signer_hmac:/secrets/tokens/signer_hmac:ro
       - ${AEA_SECRETS}/tokens/wallet_debit:/secrets/tokens/wallet_debit:ro
       - ${AEA_SECRETS}/freeze:/secrets/freeze:ro
       - aea_run:/run/aea
@@ -794,14 +800,14 @@ volumes:
 
 - Adding `/run/aea`, `aea_run`, or `~/.config/controlops/economic` (the directory) to `ops/compose.controlops.yaml` Hermes volume lists.
 - Bind-mounting the **entire** secrets tree or the **entire** `tokens/` directory into `economic-control`, `economic-policy`, `economic-wallet`, or `economic-marketplace`.
-- Injecting `AEA_WALLET_DEBIT_TOKEN`, `AEA_SIGNER_TOKEN`, `AEA_CONTROL_TOKEN`, or `AEA_SUPERVISOR_TOKEN` into Hermes. Hermes may receive **only** `AEA_MODEL_TOKEN`, from `tokens/model` (env or a single-file mount), never from a directory mount of `tokens/`. The token stays in the gateway/plugin **runtime**; it must not be written into profile `SOUL.md`, `run-input.yaml`, prompts, or tool results.
+- Injecting `AEA_WALLET_DEBIT_TOKEN`, `AEA_SIGNER_TOKEN`, `AEA_SIGNER_HMAC_KEY`, `AEA_CONTROL_TOKEN`, or `AEA_SUPERVISOR_TOKEN` into Hermes. Hermes may receive **only** `AEA_MODEL_TOKEN`, from `tokens/model` (env or a single-file mount), never from a directory mount of `tokens/`. The token stays in the gateway/plugin **runtime**; it must not be written into profile `SOUL.md`, `run-input.yaml`, prompts, or tool results. Control must never receive `tokens/signer_hmac`.
 - Using `AEA_CONTROL_TOKEN` as a client of `/v1/tools/*` (production or Gate A). That is a forbidden privilege bypass.
 
 Smoke tests (`tests/operations/economic-smoke.sh`, PR 10):
 
 1. Effective `controlops-hermes` compose model has no `aea_run` and no `~/.config/controlops/economic` source.
-2. Effective `controlops-economic` model: `economic-control` volume sources do **not** include `wallet_debit`, `tokens/signer`, `tokens/supervisor`, or `signer.key`. `tokens/model` **is** allowed on control (inbound verify only).
-3. `economic-policy` sources do **not** include `wallet_debit` or `signer.key`.
+2. Effective `controlops-economic` model: `economic-control` volume sources do **not** include `wallet_debit`, `tokens/signer`, `tokens/signer_hmac`, `tokens/supervisor`, or `signer.key`. `tokens/model` **is** allowed on control (inbound verify only).
+3. `economic-policy` sources do **not** include `wallet_debit` or `signer.key`. Policy **does** mount `tokens/signer` and `tokens/signer_hmac` (HMAC caller). `economic-signer` mounts `tokens/signer`, `tokens/signer_hmac`, and `tokens/wallet_debit` only among spend credentials.
 4. `economic-marketplace` **does** include `tokens/wallet_credit` and `tokens/marketplace`.
 5. `economic-wallet` sources are exactly the three wallet token files (debit/credit/read), not the `tokens/` directory.
 
@@ -1688,6 +1694,8 @@ Canonical request (what the signer hashes):
 
 Canonicalisation: UTF-8 JSON, keys sorted, no whitespace, amounts 6 decimal places. SHA-256 over bytes. Signer stores hash; a second submit of the same `request_id` with a different hash is `REPLAY_APPROVED_REQUEST`.
 
+The signer **also** binds `policy_hash` into this hash (additive). The resulting **signer canonical hash is not** `PolicyOutput.canonical_request_hash` from the policy engine: the engine hash omits `request_id` and `policy_hash`. PR10 must construct the signer approval artifact with `aea.signer.canonical_approved_hash` and `aea.signer.compute_request_hmac`; it must not copy the policy-engine hash onto `POST /v1/sign`.
+
 ---
 
 ## 10. Policy Engine
@@ -1760,12 +1768,14 @@ class PolicyOutput(BaseModel):
 
 Interface (unix socket HTTP or tiny length-prefixed JSON):
 
-`POST /v1/sign` body = `{ "approved_request": {...}, "canonical_hash": "...", "policy_version": "..." }`
+`POST /v1/sign` body = `{ "approved_request": {...}, "canonical_hash": "...", "policy_version": "...", "request_hmac": "..." }`
+
+`request_hmac` is HMAC-SHA256 (lowercase hex) over the canonical signer approval artifact: `{approved_request, canonical_hash, policy_version, policy_hash}` with sorted keys and no whitespace. The HMAC key is `AEA_SIGNER_HMAC_KEY` (`tokens/signer_hmac`), **distinct** from `AEA_SIGNER_TOKEN` and all wallet credentials. Policy holds the key and computes the MAC; the signer verifies it with `hmac.compare_digest`. Control, Hermes, and the model never receive it.
 
 Rules:
 
 - Accept connections only on `/run/aea/signer.sock`, mode **`0660`**, group **`aea-signpipe`**. Policy is in that group; Hermes is not and does not mount `aea_run`.
-- Require `AEA_SIGNER_TOKEN`. `AEA_MODEL_TOKEN` and `AEA_CONTROL_TOKEN` are rejected.
+- Require `AEA_SIGNER_TOKEN` **and** a valid `request_hmac`. `AEA_MODEL_TOKEN` and `AEA_CONTROL_TOKEN` are rejected. Missing, malformed, or incorrect MAC is fail-closed **before** wallet debit (`VALIDATION_ERROR` / `UNAUTHENTICATED`).
 - Recompute hash; mismatch → `REPLAY_APPROVED_REQUEST`.
 - `request_id` seen before → return original result if hash matches, else reject.
 - Refuse if `FREEZE` present or `signer_enabled=false` (in-memory flag set by supervisor `POST /v1/disable`).
@@ -2778,7 +2788,7 @@ Questions 2, 3, 4, and 8 are closed as Key Decisions 15–18. Question 7 (HTTP-o
 23. **Every inbound DTO is pydantic `extra='forbid'`** at the ASGI layer, including `force=true`.
 24. **`economic-agent` profile gateway is isolated:** `AEA_MODEL_TOKEN` only in that **runtime** env, never in LLM context; validator profile not co-hosted; `file`/`terminal`/`web`/`process` listed in `disabled_toolsets`.
 25. **Learn is wired:** `evaluate_job` mixes adapter/counterparty historical success into `probability_payment`. Constitution hash lives on `constitution_versions`, not `policy_versions`.
-26. **Per-file secret mounts** — each economic container sees only the token/key files listed in §4.4. Control/policy never mount `wallet_debit` or `signer.key`. Control **may** mount `tokens/model` solely to verify inbound Bearer. Marketplace mounts `wallet_credit`. Wallet mounts only debit/credit/read token files, not the whole `tokens/` directory. Supervisor may write `freeze/` but does not hold the debit token. Smoke-tested in PR 10.
+26. **Per-file secret mounts** — each economic container sees only the token/key files listed in §4.4. Control/policy never mount `wallet_debit` or `signer.key`. Control never mounts `tokens/signer_hmac`. Policy and signer mount `tokens/signer_hmac` (HMAC caller / verifier). Control **may** mount `tokens/model` solely to verify inbound Bearer. Marketplace mounts `wallet_credit`. Wallet mounts only debit/credit/read token files, not the whole `tokens/` directory. Supervisor may write `freeze/` but does not hold the debit token. Smoke-tested in PR 10.
 27. **Gate A is a test-only model-scoped client, not a privileged bypass.** `/v1/tools/*` accepts only `AEA_MODEL_TOKEN`. There is no production `control/loop.py`. Control token on `/v1/tools/*` is a failing test.
 
 ---
@@ -2815,7 +2825,7 @@ Do **not** put live wallet or live marketplace in PRs 1–12. Each PR is indepen
 
 - **Files/components affected:** `src/aea/signer/service.py`, `backend.py`, `mock.py`; unix socket server; freeze-file check; `tests/integration/test_signer_isolation.py`.
 - **Dependencies:** PR 3, PR 4
-- **Description:** Signer on unix socket `0660`/`aea-signpipe`; `AEA_SIGNER_TOKEN` only; calls wallet **debit** token; hash mismatch and replay tests; freeze denies; responses contain no key fields. Model/control tokens rejected.
+- **Description:** Signer on unix socket `0660`/`aea-signpipe`; `AEA_SIGNER_TOKEN` **and** request HMAC (`AEA_SIGNER_HMAC_KEY`, distinct secret); calls wallet **debit** token; hash mismatch and replay tests; freeze denies; responses contain no key fields. Model/control tokens rejected. Signer canonical hash (includes `request_id` + `policy_hash`) is not `PolicyOutput.canonical_request_hash`.
 
 ### PR 6: Ledger services (jobs, costs, revenues, decisions, audit)
 

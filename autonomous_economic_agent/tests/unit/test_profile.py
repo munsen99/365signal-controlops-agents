@@ -24,6 +24,8 @@ FORBIDDEN_IN_RUN_INPUT = (
     "unprofitable-research",
     "external_reference",
     "AEA_MODEL_TOKEN",
+    "AEA_SIGNER_HMAC_KEY",
+    "AEA_SIGNER_TOKEN",
     "opportunity_id",
     "expected_revenue",
 )
@@ -37,6 +39,8 @@ def test_disabled_toolsets_include_file_terminal_web_process() -> None:
     assert cfg["plugins"]["enabled"] == ["economic-agent"]
     profile_text = PROFILE.read_text(encoding="utf-8")
     assert "AEA_MODEL_TOKEN" not in profile_text
+    assert "AEA_SIGNER_HMAC_KEY" not in profile_text
+    assert "AEA_SIGNER_TOKEN" not in profile_text
     assert "Bearer" not in profile_text
 
 
