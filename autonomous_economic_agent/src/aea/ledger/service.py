@@ -221,9 +221,7 @@ class LedgerService:
             (self._agent_id,),
         ).fetchone()
         car = self._conn.execute("SELECT * FROM v_capital_at_risk").fetchone()
-        sup = self._conn.execute(
-            "SELECT frozen, signer_enabled FROM supervisor_state WHERE singleton"
-        ).fetchone()
+        flags = self.supervisor_flags()
         policy_row = self._conn.execute(
             "SELECT policy_version FROM policy_versions WHERE is_current"
         ).fetchone()
@@ -248,8 +246,9 @@ class LedgerService:
             "agent_id": self._agent_id,
             "policy_version": policy_row["policy_version"] if policy_row else POLICY_VERSION,
             "wallet_phase": self._policy.document.wallet_phase,
-            "frozen": bool(sup["frozen"]) if sup else False,
-            "signer_enabled": bool(sup["signer_enabled"]) if sup else False,
+            "frozen": flags["frozen"],
+            "signer_enabled": flags["signer_enabled"],
+            "loop_enabled": flags["loop_enabled"],
             "balances": {
                 "USDC": usdc["current_balance"],
                 "SOL": sol["current_balance"],
@@ -266,6 +265,42 @@ class LedgerService:
             "open_jobs": int(open_jobs["n"]) if open_jobs else 0,
             "unit_of_account": "USDC",
         }
+
+    def supervisor_flags(self) -> dict[str, bool]:
+        """Fail closed when the singleton row is missing or unreadable."""
+        try:
+            row = self._conn.execute(
+                """
+                SELECT frozen, signer_enabled, loop_enabled
+                  FROM supervisor_state
+                 WHERE singleton
+                """
+            ).fetchone()
+        except Exception:
+            return {
+                "frozen": True,
+                "signer_enabled": False,
+                "loop_enabled": False,
+                "readable": False,
+            }
+        if row is None:
+            return {
+                "frozen": True,
+                "signer_enabled": False,
+                "loop_enabled": False,
+                "readable": False,
+            }
+        return {
+            "frozen": bool(row["frozen"]),
+            "signer_enabled": bool(row["signer_enabled"]),
+            "loop_enabled": bool(row["loop_enabled"]),
+            "readable": True,
+        }
+
+    def _require_unfrozen(self) -> None:
+        flags = self.supervisor_flags()
+        if flags["frozen"] or not flags["readable"]:
+            raise LedgerError(HttpCode.AGENT_FROZEN, "economic activity is frozen")
 
     def daily_spend_usdc(self) -> Decimal:
         row = self._conn.execute(
@@ -387,6 +422,7 @@ class LedgerService:
                 out = dict(existing)
                 out["replay"] = True
                 return out
+            self._require_unfrozen()
             opp = self.set_opportunity_decision(req.opportunity_id, "accepted")
             if format_amount(_dec(opp["expected_revenue"])) != format_amount(req.expected_revenue):
                 raise LedgerError(HttpCode.CONFLICT, "expected_revenue does not match opportunity")
@@ -435,6 +471,7 @@ class LedgerService:
                 out = dict(row)
                 out["replay"] = True
                 return out
+            self._require_unfrozen()
             submitted_at = row["submitted_at"]
             completed_at = row["completed_at"]
             if req.status == "submitted":
@@ -493,6 +530,7 @@ class LedgerService:
                 out = dict(existing)
                 out["replay"] = True
                 return out
+            self._require_unfrozen()
             cash = req.payment_request_id is not None
             if cash:
                 pay = self._conn.execute(
@@ -576,6 +614,7 @@ class LedgerService:
                 out = dict(existing)
                 out["replay"] = True
                 return out
+            self._require_unfrozen()
             job = self._conn.execute(
                 "SELECT * FROM jobs WHERE job_id = %s FOR UPDATE",
                 (req.job_id,),
@@ -707,6 +746,7 @@ class LedgerService:
                 out = dict(existing)
                 out["replay"] = True
                 return out
+            self._require_unfrozen()
             dup = self._conn.execute(
                 """
                 SELECT request_id FROM payment_requests

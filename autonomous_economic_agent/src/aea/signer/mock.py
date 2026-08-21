@@ -40,6 +40,7 @@ class MockSigner:
         hmac_key: str,
         signer_enabled: bool = True,
         db_frozen_reader: Callable[[], Any] | None = None,
+        db_signer_enabled_reader: Callable[[], Any] | None = None,
     ) -> None:
         if not expected_policy_version:
             raise ValueError("expected_policy_version is required")
@@ -58,6 +59,7 @@ class MockSigner:
         self._hmac_key = hmac_key
         self._enabled = bool(signer_enabled)
         self._db_frozen_reader = db_frozen_reader
+        self._db_signer_enabled_reader = db_signer_enabled_reader
         self._lock = Lock()
         self._results: dict[UUID, SignResult] = {}
         self._hashes: dict[UUID, str] = {}
@@ -69,7 +71,23 @@ class MockSigner:
 
     @property
     def signer_enabled(self) -> bool:
-        return self._enabled
+        return self.is_effectively_enabled()
+
+    def is_effectively_enabled(self) -> bool:
+        """Memory AND DB. Unreadable/malformed DB fails closed (disabled)."""
+        with self._lock:
+            memory = self._enabled
+        if not memory:
+            return False
+        if self._db_signer_enabled_reader is None:
+            return True
+        try:
+            value = self._db_signer_enabled_reader()
+        except Exception:
+            return False
+        if value is None or not isinstance(value, bool):
+            return False
+        return value
 
     @property
     def hmac_key(self) -> str:
@@ -128,7 +146,6 @@ class MockSigner:
         with self._lock:
             previous = self._results.get(request_id)
             previous_hash = self._hashes.get(request_id)
-            enabled = self._enabled
             if previous is None and request_id in self._in_flight:
                 return fail(HttpCode.CONFLICT)
             if previous is None:
@@ -142,12 +159,16 @@ class MockSigner:
             return previous.model_copy(update={"replay": True, "code": HttpCode.IDEMPOTENT_REPLAY})
 
         try:
-            if not enabled:
-                return fail(HttpCode.SIGNER_DISABLED)
-
             inspection = self.inspect_current_freeze()
             if inspection.frozen:
                 return fail(HttpCode.AGENT_FROZEN)
+            if not self.is_effectively_enabled():
+                return fail(HttpCode.SIGNER_DISABLED)
+            inspection = self.inspect_current_freeze()
+            if inspection.frozen:
+                return fail(HttpCode.AGENT_FROZEN)
+            if not self.is_effectively_enabled():
+                return fail(HttpCode.SIGNER_DISABLED)
 
             try:
                 tx_id = await self._debit.debit(

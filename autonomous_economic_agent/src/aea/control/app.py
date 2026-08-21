@@ -19,7 +19,7 @@ from pydantic import ValidationError
 from aea import AGENT_ID, CONSTITUTION_VERSION, NINE_TOOLS, POLICY_VERSION
 from aea.config import LoadedPolicy, load_policy
 from aea.control.auth import authorize_model_tools, bearer_token
-from aea.control.freeze import inspect_control_freeze, tool_is_mutating
+from aea.control.freeze import inspect_control_safety, tool_is_mutating
 from aea.control.schemas import TOOL_MODELS
 from aea.hashing import canonical_json_hash
 from aea.marketplace.mock import MockMarketplace
@@ -110,6 +110,7 @@ def _status_for(code: str) -> int:
         HttpCode.JOB_FAILED: 200,
         HttpCode.RUNAWAY_COST: 200,
         HttpCode.SIGNER_DISABLED: 200,
+        HttpCode.LOOP_STOPPED: 200,
         ReasonCode.MARGIN_NOT_MET: 200,
         ReasonCode.PROHIBITED_TOKEN: 200,
         ReasonCode.OPEN_JOBS_EXCEEDED: 200,
@@ -134,6 +135,7 @@ class ControlService:
         credit_token: str | None = None,
         marketplace_token: str | None = None,
         wallet_get_tx: WalletTxLookup | None = None,
+        state_reader: Callable[[], Any] | None = None,
     ) -> None:
         if not model_token:
             raise ValueError("model_token is required")
@@ -148,6 +150,7 @@ class ControlService:
         self._marketplace = marketplace
         self._policy = policy
         self._wallet_get_tx = wallet_get_tx
+        self._state_reader = state_reader
         self._opps: dict[str, dict[str, Any]] = {}
         self._jobs: dict[str, dict[str, Any]] = {}
         self._decisions: list[dict[str, Any]] = []
@@ -254,11 +257,20 @@ class ControlService:
                 secrets=self._secrets(),
             )
             return
-        if tool_is_mutating(name) and inspect_control_freeze(self._freeze_path).frozen:
+        safety = self._safety()
+        if tool_is_mutating(name) and safety.frozen:
             await _send_json(
                 send,
                 status=200,
                 payload={"ok": False, "code": HttpCode.AGENT_FROZEN},
+                secrets=self._secrets(),
+            )
+            return
+        if tool_is_mutating(name) and not safety.loop_enabled:
+            await _send_json(
+                send,
+                status=200,
+                payload={"ok": False, "code": HttpCode.LOOP_STOPPED},
                 secrets=self._secrets(),
             )
             return
@@ -300,6 +312,27 @@ class ControlService:
             payload=result,
             secrets=self._secrets(),
         )
+
+    def _safety(self):
+        db_kw: dict[str, Any] = {}
+        if self._state_reader is not None:
+            try:
+                snap = self._state_reader()
+            except Exception:
+                snap = None
+            if not isinstance(snap, dict):
+                db_kw = {
+                    "db_frozen": None,
+                    "db_signer_enabled": None,
+                    "db_loop_enabled": None,
+                }
+            else:
+                db_kw = {
+                    "db_frozen": snap.get("frozen"),
+                    "db_signer_enabled": snap.get("signer_enabled"),
+                    "db_loop_enabled": snap.get("loop_enabled"),
+                }
+        return inspect_control_safety(self._freeze_path, **db_kw)
 
     def _dispatch(self, name: str, req: Any) -> dict[str, Any]:
         return {
@@ -371,7 +404,7 @@ class ControlService:
                     "expected_cost_usdc": format_amount(cost),
                     "probability_payment": float(hist),
                     "open_jobs": open_jobs,
-                    "frozen": inspect_control_freeze(self._freeze_path).frozen,
+                    "frozen": self._safety().frozen,
                     "asset": "USDC" if asset == "USDC" else "USDC",
                 }
             ),
@@ -543,6 +576,15 @@ class ControlService:
                 "policy_decision": "pending",
             }
         )
+        if not self._safety().signer_enabled:
+            return {
+                "ok": False,
+                "code": HttpCode.SIGNER_DISABLED,
+                "request_id": request_id,
+                "policy_decision": "pending",
+                "reason_code": HttpCode.SIGNER_DISABLED,
+                "transaction_reference": None,
+            }
         return {
             "ok": False,
             "code": HttpCode.SIGNER_UNAVAILABLE,
@@ -553,7 +595,7 @@ class ControlService:
         }
 
     def _get_financial_state(self, req: Any) -> dict[str, Any]:
-        frozen = inspect_control_freeze(self._freeze_path).frozen
+        safety = self._safety()
         open_jobs = sum(
             1
             for j in self._jobs.values()
@@ -566,8 +608,9 @@ class ControlService:
             "agent_id": AGENT_ID,
             "policy_version": self._policy.document.policy_version or POLICY_VERSION,
             "wallet_phase": self._policy.document.wallet_phase,
-            "frozen": frozen,
-            "signer_enabled": True,
+            "frozen": safety.frozen,
+            "signer_enabled": safety.signer_enabled,
+            "loop_enabled": safety.loop_enabled,
             "balances": {"USDC": "20.000000", "SOL": "0.050000"},
             "opening_usdc": "20.000000",
             "realised_pnl_usdc": "0.000000",
@@ -606,6 +649,7 @@ def create_app(
     supervisor_token: str | None = None,
     credit_token: str | None = None,
     marketplace_token: str | None = None,
+    state_reader: Callable[[], Any] | None = None,
 ) -> ControlService:
     return ControlService(
         model_token=model_token,
@@ -617,6 +661,7 @@ def create_app(
         credit_token=credit_token,
         marketplace_token=marketplace_token,
         wallet_get_tx=wallet_get_tx,
+        state_reader=state_reader,
     )
 
 

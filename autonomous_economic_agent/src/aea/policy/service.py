@@ -20,6 +20,7 @@ from pydantic import ValidationError
 from aea.config import LoadedPolicy, load_policy
 from aea.policy.engine import evaluate
 from aea.policy.reasons import HttpCode
+from aea.signer.freeze import inspect_freeze
 from aea.types import PolicyInput, PolicyOutput
 
 POLICY_PORT = 18701
@@ -131,6 +132,7 @@ class PolicyService:
         model_token: str | None = None,
         freeze_path: Path | None = None,
         now: datetime | None = None,
+        db_frozen_reader: Callable[[], Any] | None = None,
     ) -> None:
         if not control_token:
             raise ValueError("control_token is required")
@@ -139,6 +141,7 @@ class PolicyService:
         self._loaded = loaded
         self._freeze_path = freeze_path
         self._now = now
+        self._db_frozen_reader = db_frozen_reader
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
@@ -210,11 +213,7 @@ class PolicyService:
                 payload={"ok": False, "code": HttpCode.VALIDATION_ERROR},
             )
             return
-        frozen_disk = freeze_from_path(
-            self._freeze_path,
-            fail_closed_unreadable_dir=self._loaded.document.emergency.fail_closed_on_unreadable_freeze_dir,
-        )
-        if frozen_disk:
+        if self._freeze_is_frozen():
             inp = inp.model_copy(update={"frozen": True})
         dest = self._loaded.classify(inp.destination)
         now = self._now or datetime.now(timezone.utc)
@@ -228,6 +227,25 @@ class PolicyService:
         status, body = _envelope(output)
         await _send_json(send, status=status, payload=body)
 
+    def _freeze_is_frozen(self) -> bool:
+        db_kw: dict[str, Any] = {}
+        if self._db_frozen_reader is not None:
+            try:
+                db_kw["db_frozen"] = self._db_frozen_reader()
+            except Exception:
+                db_kw["db_frozen"] = None
+        if self._freeze_path is not None:
+            return inspect_freeze(self._freeze_path, **db_kw).frozen
+        if "db_frozen" in db_kw:
+            value = db_kw["db_frozen"]
+            if value is None or not isinstance(value, bool):
+                return True
+            return bool(value)
+        return freeze_from_path(
+            self._freeze_path,
+            fail_closed_unreadable_dir=self._loaded.document.emergency.fail_closed_on_unreadable_freeze_dir,
+        )
+
 
 def create_app(
     *,
@@ -236,6 +254,7 @@ def create_app(
     model_token: str | None = None,
     freeze_path: Path | None = None,
     now: datetime | None = None,
+    db_frozen_reader: Callable[[], Any] | None = None,
 ) -> PolicyService:
     return PolicyService(
         control_token=control_token,
@@ -243,6 +262,7 @@ def create_app(
         model_token=model_token,
         freeze_path=freeze_path,
         now=now,
+        db_frozen_reader=db_frozen_reader,
     )
 
 

@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# PR9 stub. Full operator CLI (start/stop/doctor) is PR10.
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")" && pwd)"
+cmd="${1:-}"
+shift || true
+case "${cmd}" in
+  freeze)
+    exec bash "${ROOT}/freeze.sh" "$@"
+    ;;
+  unfreeze)
+    exec bash "${ROOT}/unfreeze.sh" "$@"
+    ;;
+  status)
+    curl -sS "${AEA_SUPERVISOR_URL:-http://127.0.0.1:18703}/health"
+    echo
+    ;;
+  *)
+    echo "usage: economic freeze|unfreeze|status (PR9 stub; compose wiring is PR10)" >&2
+    exit 2
+    ;;
+esac

@@ -362,6 +362,9 @@ class SignerService:
         if method == "POST" and path == "/v1/disable":
             await self._disable(headers, send)
             return
+        if method == "POST" and path == "/v1/enable":
+            await self._enable(headers, send)
+            return
         await _send_json(
             send,
             status=404,
@@ -415,6 +418,22 @@ class SignerService:
             send,
             status=200,
             payload={"ok": True, "code": HttpCode.OK, "signer_enabled": False},
+            secrets=self._secrets(),
+        )
+
+    async def _enable(self, headers: dict[str, str], send: Send) -> None:
+        if not self._supervisor:
+            await self._denied(send, HttpCode.UNAUTHENTICATED)
+            return
+        denied = self._classify(_bearer(headers), self._supervisor)
+        if denied:
+            await self._denied(send, denied)
+            return
+        self._signer.set_enabled(True)
+        await _send_json(
+            send,
+            status=200,
+            payload={"ok": True, "code": HttpCode.OK, "signer_enabled": True},
             secrets=self._secrets(),
         )
 
