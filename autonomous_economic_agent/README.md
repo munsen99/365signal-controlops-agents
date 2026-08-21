@@ -33,3 +33,19 @@ pytest
 
 The SOUL consistency check compares this tree’s constitution with
 `agents/economic-agent/runtime/SOUL.md`.
+
+## Existing Postgres volume
+
+Init files `platform/postgres/init/013`–`015` run automatically only on a
+**fresh** `controlops-postgres` volume. On the current workstation volume:
+
+```bash
+bash autonomous_economic_agent/scripts/apply_schema.sh
+```
+
+That applies the `economic` schema as `controlops_admin`, optionally sets
+`economic_app` / `economic_supervisor` passwords from
+`~/.config/controlops/economic/` when those files exist, refreshes policy
+and constitution hashes from git, and runs
+`platform/postgres/validation/013-economic-schema-validation.sql`.
+Hermes must not be given a database URL.
