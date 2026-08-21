@@ -1,0 +1,179 @@
+$schema: "https://json-schema.org/draft/2020-12/schema"
+$title: AEA hard financial policy
+$comment: Thresholds are configuration. Extra properties are forbidden.
+type: object
+additionalProperties: false
+required:
+  - policy_version
+  - unit_of_account
+  - daily_spend_timezone
+  - starting_treasury
+  - limits
+  - assets
+  - cost_rates
+  - prohibited
+  - destinations
+  - idempotency_ttl_seconds
+  - payment_settle_timeout_seconds
+  - wallet_phase
+  - emergency
+properties:
+  policy_version:
+    type: string
+    pattern: "^policy/v"
+  unit_of_account:
+    const: USDC
+  daily_spend_timezone:
+    const: UTC
+  starting_treasury:
+    type: object
+    additionalProperties: false
+    required: [USDC, SOL]
+    properties:
+      USDC:
+        $ref: "#/$defs/unsignedMoney"
+      SOL:
+        $ref: "#/$defs/unsignedMoney"
+  limits:
+    type: object
+    additionalProperties: false
+    required:
+      - max_outbound_usdc
+      - max_daily_discretionary_usdc
+      - max_capital_at_risk_usdc
+      - max_job_compute_usdc
+      - max_open_jobs
+      - required_margin_bps
+      - min_payment_probability
+      - max_job_seconds
+    properties:
+      max_outbound_usdc:
+        $ref: "#/$defs/unsignedMoney"
+      max_daily_discretionary_usdc:
+        $ref: "#/$defs/unsignedMoney"
+      max_capital_at_risk_usdc:
+        $ref: "#/$defs/unsignedMoney"
+      max_job_compute_usdc:
+        $ref: "#/$defs/unsignedMoney"
+      max_open_jobs:
+        type: integer
+        minimum: 1
+      required_margin_bps:
+        type: integer
+        minimum: 0
+      min_payment_probability:
+        type: number
+        minimum: 0
+        maximum: 1
+      max_job_seconds:
+        type: integer
+        minimum: 1
+  assets:
+    type: object
+    additionalProperties: false
+    required:
+      - permitted_treasury
+      - fee_asset
+      - sol_spend_requires_job
+      - sol_max_fee_per_tx
+      - sol_usdc_snapshot
+      - sol_usdc_unknown_ceiling
+    properties:
+      permitted_treasury:
+        type: array
+        minItems: 1
+        items:
+          const: USDC
+      fee_asset:
+        const: SOL
+      sol_spend_requires_job:
+        type: boolean
+      sol_max_fee_per_tx:
+        $ref: "#/$defs/unsignedMoney"
+      sol_usdc_snapshot:
+        $ref: "#/$defs/unsignedMoney"
+      sol_usdc_unknown_ceiling:
+        $ref: "#/$defs/unsignedMoney"
+  cost_rates:
+    type: object
+    additionalProperties: false
+    required:
+      - compute_usd_per_1k_tokens_in
+      - compute_usd_per_1k_tokens_out
+      - compute_usd_per_wall_second
+      - compute_floor_usdc
+    properties:
+      compute_usd_per_1k_tokens_in:
+        $ref: "#/$defs/unsignedMoney"
+      compute_usd_per_1k_tokens_out:
+        $ref: "#/$defs/unsignedMoney"
+      compute_usd_per_wall_second:
+        $ref: "#/$defs/unsignedMoney"
+      compute_floor_usdc:
+        $ref: "#/$defs/unsignedMoney"
+  prohibited:
+    type: object
+    additionalProperties: false
+    required:
+      - borrow
+      - leverage
+      - lend
+      - speculate
+      - arbitrary_swaps
+      - unknown_contracts
+      - wallet_transfer_without_job
+      - agent_policy_mutation
+    properties:
+      borrow:
+        const: true
+      leverage:
+        const: true
+      lend:
+        const: true
+      speculate:
+        const: true
+      arbitrary_swaps:
+        const: true
+      unknown_contracts:
+        const: true
+      wallet_transfer_without_job:
+        const: true
+      agent_policy_mutation:
+        const: true
+  destinations:
+    type: object
+    additionalProperties: false
+    required: [allow_unclassified, file]
+    properties:
+      allow_unclassified:
+        const: false
+      file:
+        type: string
+        const: destinations.yaml
+  idempotency_ttl_seconds:
+    type: integer
+    minimum: 1
+  payment_settle_timeout_seconds:
+    type: integer
+    minimum: 1
+  wallet_phase:
+    type: string
+    enum: [A, B, C]
+  emergency:
+    type: object
+    additionalProperties: false
+    required:
+      - freeze_independent_of_agent
+      - fail_closed_on_missing_freeze_file
+      - fail_closed_on_unreadable_freeze_dir
+    properties:
+      freeze_independent_of_agent:
+        const: true
+      fail_closed_on_missing_freeze_file:
+        type: boolean
+      fail_closed_on_unreadable_freeze_dir:
+        const: true
+$defs:
+  unsignedMoney:
+    type: string
+    pattern: "^[0-9]+(\\.[0-9]{1,8})?$"

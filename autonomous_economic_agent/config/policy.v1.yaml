@@ -1,0 +1,49 @@
+policy_version: "policy/v0.1.0"
+unit_of_account: USDC
+daily_spend_timezone: UTC
+starting_treasury:
+  USDC: "20.000000"
+  SOL: "0.050000"          # fee reserve only; not revenue
+limits:
+  max_outbound_usdc: "1.000000"
+  max_daily_discretionary_usdc: "3.000000"
+  max_capital_at_risk_usdc: "5.000000"
+  max_job_compute_usdc: "0.500000"
+  max_open_jobs: 3
+  required_margin_bps: 200          # expected_revenue >= expected_cost * (1 + 200/10000)
+  min_payment_probability: 0.6
+  max_job_seconds: 120
+assets:
+  permitted_treasury: ["USDC"]
+  fee_asset: SOL
+  sol_spend_requires_job: true
+  sol_max_fee_per_tx: "0.010000"
+  # Operator-set. Never a live oracle in v0.1. Used at cost-insert snapshot time only.
+  sol_usdc_snapshot: "150.000000"
+  # If snapshot is missing/unreadable at insert: use this ceiling for usdc_equivalent.
+  # Never zero-hide a SOL fee. Never mark-to-market later.
+  sol_usdc_unknown_ceiling: "500.000000"
+cost_rates:
+  compute_usd_per_1k_tokens_in: "0.000000"
+  compute_usd_per_1k_tokens_out: "0.000000"
+  compute_usd_per_wall_second: "0.000100"
+  compute_floor_usdc: "0.001000"
+prohibited:
+  borrow: true
+  leverage: true
+  lend: true
+  speculate: true
+  arbitrary_swaps: true
+  unknown_contracts: true
+  wallet_transfer_without_job: true
+  agent_policy_mutation: true
+destinations:
+  allow_unclassified: false
+  file: destinations.yaml
+idempotency_ttl_seconds: 86400
+payment_settle_timeout_seconds: 3600
+wallet_phase: A                    # A | B | C
+emergency:
+  freeze_independent_of_agent: true
+  fail_closed_on_missing_freeze_file: false
+  fail_closed_on_unreadable_freeze_dir: true

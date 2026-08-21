@@ -1,0 +1,11 @@
+classifications:
+  - id: "mock:fee_payer"
+    class: network_fee
+    allowed: true
+  - id: "mock:counterparty:mkt-escrow"
+    class: marketplace_escrow
+    allowed: true
+    max_usdc: "1.000000"
+  - id: "unknown"
+    class: unknown
+    allowed: false

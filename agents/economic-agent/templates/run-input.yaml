@@ -1,0 +1,22 @@
+task:
+  task_id: "aea-m1-cycle"
+  title: "One economic work cycle"
+agent_id: economic-agent
+instructions: |
+  You are running one simulated economic work cycle. Use only the nine economic tools.
+  Do not ask a human which job to take. Do not invent job IDs; only use ids
+  returned by find_jobs.
+  1. get_financial_state
+  2. find_jobs to discover available opportunities
+  3. evaluate_job for each discovered candidate; record_decision
+  4. accept_job only for work that is profitable, permitted, and
+     meets_required_margin
+  5. Do not accept unprofitable or prohibited work
+  6. For each accepted job: perform_job, submit_work, check_payment
+     until settled or failed
+  Stop on AGENT_FROZEN, POLICY_REJECTED, PROMPT_INJECTION_DETECTED, or no
+  acceptable jobs. Do not call terminal, file, web, or any tool not in the nine.
+stop_conditions:
+  - AGENT_FROZEN
+  - no acceptable jobs
+  - cycle complete (settled or declined all)

@@ -1,0 +1,58 @@
+model:
+  default: lmstudio-community/qwen3.6-35b-a3b
+  provider: lmstudio
+  base_url: http://127.0.0.1:1234/v1
+plugins:
+  enabled:
+    - economic-agent
+agent:
+  disabled_toolsets:
+    - browser
+    - clarify
+    - code_execution
+    - computer_use
+    - context_engine
+    - cronjob
+    - delegation
+    - discord
+    - discord_admin
+    - feishu_doc
+    - feishu_drive
+    - file
+    - homeassistant
+    - image_gen
+    - kanban
+    - memory
+    - process
+    - project
+    - search
+    - session_search
+    - skills
+    - spotify
+    - terminal
+    - todo
+    - tts
+    - video
+    - video_gen
+    - vision
+    - web
+    - x_search
+    - yuanbao
+compression:
+  enabled: false
+display:
+  tool_progress: all
+memory:
+  memory_enabled: false
+  user_profile_enabled: false
+_config_version: 33
+platform_toolsets:
+  cli:
+    - economic
+smart_model_routing:
+  enabled: false
+session_reset:
+  mode: none
+# Model-scoped bearer is injected into the gateway/plugin runtime
+# environment only. It must never appear in this file, SOUL.md, or
+# run-input.yaml.

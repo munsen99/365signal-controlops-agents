@@ -1,0 +1,7 @@
+# Canonical Compose model for project controlops-economic.
+# Repo path ops/compose.economic.yaml is a symlink to this file (PR 1).
+#
+# Services, host-network topology, unix-socket signer, and per-file secret
+# mounts are added in PR 10. Do not attach a live wallet or live marketplace
+# here. wallet_phase remains A until gated M2 PRs.
+name: controlops-economic

@@ -1,0 +1,14 @@
+version: 1
+disable_existing_loggers: false
+formatters:
+  structured:
+    format: '{"timestamp":"%(asctime)s","severity":"%(levelname)s","logger":"%(name)s","message":"%(message)s"}'
+handlers:
+  console:
+    class: logging.StreamHandler
+    formatter: structured
+    stream: ext://sys.stdout
+root:
+  level: INFO
+  handlers: [console]
+# Never log tokens, keys, Authorization headers, or seed material.
