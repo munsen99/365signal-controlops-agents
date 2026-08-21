@@ -1,0 +1,123 @@
+{
+  "completed_job_id": "84e18b3a-f149-49a0-988d-49fba9887aaf",
+  "constitution_version": "constitution/v0.1.0",
+  "cost_and_pnl": {
+    "job_id": "84e18b3a-f149-49a0-988d-49fba9887aaf",
+    "realised_cost_usdc": "0.051000",
+    "realised_pnl_usdc": "0.449000",
+    "realised_revenue_usdc": "0.500000",
+    "status": "completed"
+  },
+  "decision_ids": [
+    "5828020f-b9bd-4245-80a0-e36a0f0df82b",
+    "e183f07f-7d02-487b-9bc4-efc5c0833757",
+    "dd740edd-9bd1-443e-8f87-6872d4ceea66",
+    "bd42128f-1434-48df-8541-dfdc4f83d432",
+    "3440274e-e395-4b5d-8bff-7e35948321fa",
+    "8ab5d3f9-cae2-430d-a67f-c1c16f336e8f",
+    "ef878a09-8f88-4d29-946a-f988f7abe252",
+    "1f397da4-5367-4d13-8618-b908252b7909"
+  ],
+  "economic_ids": {
+    "cost_ids": [
+      "55d2c0d6-8dce-41b3-80a0-6622acd13a72",
+      "1270ce18-cfd2-4d56-ac22-9e32768e0356"
+    ],
+    "revenue_ids": [
+      "fe2555cf-88b3-4429-b8c3-b0bf43114bcc"
+    ],
+    "transfer_ids": [
+      "c5eed90a-749d-46d9-a959-161084a321af",
+      "9d315c00-bdd7-47e8-a578-cec28c7bc731"
+    ]
+  },
+  "final_balances": {
+    "SOL": "0.05",
+    "USDC": "20.450000"
+  },
+  "fixtures_exercised": [
+    "mock:job:fails-after-spend-001",
+    "mock:job:fake-payment-001",
+    "mock:job:high-compute-001",
+    "mock:job:network-fail-001",
+    "mock:job:profitable-summary-001",
+    "mock:job:prohibited-token-001",
+    "mock:job:prompt-injection-001",
+    "mock:job:unprofitable-research-001"
+  ],
+  "gate": "A deterministic machinery only; no autonomous-model claim",
+  "negative_results": {
+    "failure_after_spend": "JOB_FAILED",
+    "fake_payment": "FAKE_PAYMENT",
+    "network": "NETWORK_FAILURE",
+    "prohibited": "PROHIBITED_TOKEN",
+    "prompt_injection": "PROMPT_INJECTION_DETECTED",
+    "runaway": "RUNAWAY_COST",
+    "unprofitable": "MARGIN_NOT_MET"
+  },
+  "outbound_payment": {
+    "conflicting_replay": "IDEMPOTENCY_CONFLICT",
+    "policy_decision": "approved",
+    "policy_rejection": "PROHIBITED_DESTINATION",
+    "replay_safe": true,
+    "request_id": "ad5407a3-2d4c-47e8-93a1-3579162ece7f",
+    "transaction_reference": "mocktx_6072b305d351405894cca74dc947b74c"
+  },
+  "policy_hash": "9550e613fb06c8b578676101de49ca0670be6177df80f20c11dd53a919a00f1e",
+  "policy_version": "policy/v0.1.0",
+  "pr10_proofs_retained": {
+    "crash_idempotency": "tests/integration/test_payment.py",
+    "outbound_payment_and_hmac": "tests/integration/test_payment.py",
+    "policy_car": "tests/integration/test_payment.py",
+    "supervisor_freeze": "tests/integration/test_supervisor.py"
+  },
+  "reconciliation": {
+    "code": "OK",
+    "mismatches": [],
+    "ok": true,
+    "rows": [
+      {
+        "agent_id": "economic-agent",
+        "asset": "SOL",
+        "delta": "0.000000",
+        "ledger_balance": "0.050000",
+        "opening_balance": "0.050000",
+        "reconstructed_balance": "0.050000"
+      },
+      {
+        "agent_id": "economic-agent",
+        "asset": "USDC",
+        "delta": "0.000000",
+        "ledger_balance": "20.450000",
+        "opening_balance": "20.000000",
+        "reconstructed_balance": "20.450000"
+      }
+    ]
+  },
+  "result": "PASS",
+  "run_id": "gate-a-v0.1.2",
+  "security_boundary": {
+    "exactly_nine_tools": true,
+    "live_marketplace": false,
+    "model_scope_only": true,
+    "no_generic_api_tool": true,
+    "no_secret_in_results": true,
+    "phase": "A",
+    "solana": false
+  },
+  "starting_balances": {
+    "SOL": "0.050000",
+    "USDC": "20.000000"
+  },
+  "supervisor_safety": {
+    "freeze_before_signer_no_debit": "tests/integration/test_supervisor.py",
+    "freeze_blocks_mutations": "PASS",
+    "inconsistent_state_fails_closed": "tests/integration/test_supervisor.py",
+    "loop_stop": "tests/integration/test_supervisor.py",
+    "model_cannot_relax": "tests/integration/test_supervisor.py",
+    "normal_operation": "PASS",
+    "observation_while_frozen": "PASS",
+    "signer_disable_no_debit": "tests/integration/test_supervisor.py"
+  },
+  "wallet_transaction_reference": "mocktx_8e6d62c098dc409cac813f995aaa8e70"
+}

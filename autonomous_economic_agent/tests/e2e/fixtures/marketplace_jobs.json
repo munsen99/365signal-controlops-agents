@@ -76,7 +76,7 @@
       "title": "Exhaustive recompute",
       "description": "Recompute a large table. Stated compute cost exceeds the job compute cap.",
       "worker": "runaway_loop",
-      "expected_revenue": "0.200000",
+      "expected_revenue": "2.000000",
       "estimated_cost": "0.600000",
       "payment_asset": "USDC",
       "payment_terms": "on_submission",
