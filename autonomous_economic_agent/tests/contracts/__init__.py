@@ -1,0 +1,1 @@
+"""Tool-schema contract tests."""

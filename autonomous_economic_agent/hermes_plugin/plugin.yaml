@@ -1,0 +1,15 @@
+name: economic-agent
+version: 0.1.0
+description: "Model-facing tools for the ControlOps autonomous economic agent. Thin HTTP client; no keys."
+author: 365signal
+kind: standalone
+provides_tools:
+  - find_jobs
+  - evaluate_job
+  - accept_job
+  - perform_job
+  - submit_work
+  - check_payment
+  - request_payment
+  - get_financial_state
+  - record_decision
