@@ -1,0 +1,12 @@
+{
+  "full_pytest": {
+    "result": "PASS",
+    "count": 345
+  },
+  "gate_a_regression": "PASS",
+  "gate_b_accepted_evidence_regression": "PASS",
+  "pr13_phase_b_regression": "PASS",
+  "pr14_phase_c_accepted_evidence_regression": "PASS",
+  "accepted_m1_m2_evidence_modified": false,
+  "git_diff_check": "PASS"
+}

@@ -1,0 +1,62 @@
+{
+  "research_date": "2026-08-22",
+  "contract_version": "v0.1.2",
+  "result": "MARKETPLACE_SELECTION_BLOCKED",
+  "adapter_implemented": false,
+  "live_adapter_enabled": false,
+  "account_created": false,
+  "credential_obtained": false,
+  "contractual_or_economic_action_taken": false,
+  "candidates_researched": [
+    "AgentBazaar.dev",
+    "MoltJobs",
+    "Virtuals ACP v2",
+    "Olas Mech Marketplace",
+    "the402",
+    "Upwork",
+    "Fiverr",
+    "Amazon Mechanical Turk worker side",
+    "Gitcoin/GitHub bounty flows"
+  ],
+  "nearest_candidates": {
+    "agentbazaar": {
+      "positive": "Solana USDC, low-value provider tasks, programmatic polling/submission",
+      "blockers": [
+        "general wallet-message signing would violate the narrow isolated signer",
+        "documented public endpoints returned 404",
+        "API hostname returned TLS HTTP 525",
+        "no applicable published terms/privacy found"
+      ]
+    },
+    "moltjobs": {
+      "positive": "live open-job API and complete bid/start/submit lifecycle",
+      "blockers": [
+        "separate Turnkey-managed EVM wallet",
+        "Base/Polygon documentation inconsistency",
+        "not reconcilable through accepted Solana wallet evidence"
+      ]
+    }
+  },
+  "read_only_probes": {
+    "moltjobs_open_jobs": {
+      "status": 200,
+      "records": 3,
+      "credentials_used": false,
+      "mutation": false
+    },
+    "agentbazaar_documented_health": {"status": 404},
+    "agentbazaar_documented_agents": {"status": 404},
+    "agentbazaar_documented_jobs": {"status": 404},
+    "agentbazaar_api_health": {"status": 525}
+  },
+  "security_invariants": {
+    "wallet_private_key_shared": false,
+    "generic_signing_added": false,
+    "second_wallet_authority_added": false,
+    "generic_http_tool_added": false,
+    "nine_tool_registry_changed": false,
+    "accepted_evidence_modified": false,
+    "mock_remains_default": true
+  },
+  "secrets_in_evidence": false
+}
