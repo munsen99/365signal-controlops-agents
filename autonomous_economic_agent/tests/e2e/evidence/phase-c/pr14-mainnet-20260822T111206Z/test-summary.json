@@ -1,0 +1,20 @@
+{
+  "focused_phase_c_tests": {
+    "result": "PASS",
+    "count": 61,
+    "files": [
+      "tests/unit/test_phase_c_contract.py",
+      "tests/unit/test_solana_wallet.py",
+      "tests/unit/test_policy_config.py",
+      "tests/unit/test_policy_engine.py"
+    ]
+  },
+  "full_pytest": {
+    "result": "PASS",
+    "count": 345
+  },
+  "gate_a_regression": "PASS",
+  "gate_b_accepted_evidence_regression": "PASS",
+  "phase_b_regression": "PASS",
+  "git_diff_check": "PASS"
+}

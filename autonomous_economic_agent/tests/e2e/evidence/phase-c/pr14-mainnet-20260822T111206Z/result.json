@@ -1,0 +1,68 @@
+{
+  "result": "PASS",
+  "stage": "minimal-live-settlement",
+  "network": "mainnet-beta",
+  "genesis_hash": "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d",
+  "confirmation_requirement": "finalized",
+  "transaction": {
+    "signature": "2eveDGPdxeUuHMHCQWQYBiTRN27VA4Z9pBSDkXMiZkPUWpU2cQxokji93xHrsqaU762jW9VMciuJm3JC14bFNqYR",
+    "slot": 440909123,
+    "state": "finalized",
+    "error": null,
+    "instruction": "transferChecked",
+    "instruction_count": 1,
+    "fee_lamports": 5000
+  },
+  "approved_intent": {
+    "request_id": "f2fc7993-a83e-4c62-a363-3762ebff3056",
+    "job_id": "c1400000-0000-4000-8000-000000000002",
+    "idempotency_key": "pr14-mainnet-smoke-001",
+    "asset": "USDC",
+    "amount": "0.010000",
+    "amount_base_units": 10000,
+    "decimals": 6,
+    "source_wallet": "CWqTwLoGXCYU4gn7KxEcWTVFJuhzTMEmMrBKTM512Yag",
+    "source_token_account": "5DSBGaei3dAgb1E3vJ6ux9MF3PQWwQv5XfVyPpZX6DVB",
+    "destination_classification": "mainnet:approved:smoke-recipient",
+    "destination_owner": "2RKaLMgzewq3YZZ72zh8hvAheCvBypxuhV8ty9BBefYY",
+    "destination_token_account": "8CWABX1r8vnyVHPbF4FgEHmLcpmQo55g9MRtKEUqLnXy",
+    "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+    "policy_version": "policy/v0.1.0",
+    "policy_hash": "af6e0f0f20f70c5d61e55a0cd000ed258c86c6fe01e24ce8adfcd45629ee2a96"
+  },
+  "balances": {
+    "source_before": {"USDC": "2.000000", "SOL": "0.010000"},
+    "source_after": {"USDC": "1.990000", "SOL": "0.009995"},
+    "destination_usdc_before": "0.000000",
+    "destination_usdc_after": "0.010000"
+  },
+  "ledger": {
+    "payment_decision": "approved",
+    "payment_rows": 1,
+    "cash_cost_rows": 1,
+    "network_fee_rows": 1,
+    "verified_revenue_rows": 0,
+    "opening_capital_is_revenue": false,
+    "USDC": {"opening": "2.000000", "current": "1.990000", "reconciliation_delta": "0.000000"},
+    "SOL": {"opening": "0.010000", "current": "0.009995", "reconciliation_delta": "0.000000"}
+  },
+  "uncertain_outcome": {
+    "initial_control_result": "SIGNER_UNAVAILABLE",
+    "cause": "policy-to-signer client timeout while signer completed finalized submission",
+    "transaction_was_not_reissued": true,
+    "recovery": "same request ID and idempotency identity replayed",
+    "recovery_result": "IDEMPOTENT_REPLAY",
+    "on_chain_transfer_count": 1,
+    "eventual_ledger_representation_count": 1
+  },
+  "safety": {
+    "operator_confirmation": "CONFIRM_LIVE_USDC_TRANSFER",
+    "live_spend_gate_enabled_only_for_authorized_window": true,
+    "live_spend_gate_disabled_after_transfer": true,
+    "protected_operator_intent_reset_to_disabled": true,
+    "private_key_in_evidence": false,
+    "direct_signer_or_rpc_bypass_used": false
+  },
+  "live_transaction_executed": true,
+  "secrets_in_evidence": false
+}

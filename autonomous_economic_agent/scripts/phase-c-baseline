@@ -1,0 +1,143 @@
+#!/usr/bin/env python3
+"""Operator-only Phase-C opening baseline in an isolated economic database."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+from decimal import Decimal
+from pathlib import Path
+
+import psycopg
+from psycopg import sql
+from psycopg.types.json import Jsonb
+
+from aea.config import load_policy
+from aea.hashing import canonical_json_hash, sha256_hex
+from aea.types import format_amount
+
+CONFIRM = "CONFIRM_PHASE_C_BASELINE"
+TARGET_DB = "controlops_phase_c"
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("confirmation")
+    parser.add_argument("--usdc", required=True)
+    parser.add_argument("--sol", required=True)
+    parser.add_argument("--policy", required=True, type=Path)
+    parser.add_argument("--destinations", required=True, type=Path)
+    args = parser.parse_args()
+    if args.confirmation != CONFIRM:
+        raise SystemExit(f"exact confirmation {CONFIRM} is required")
+    target = os.environ.get("AEA_POSTGRES_DB", TARGET_DB)
+    if target != TARGET_DB or target == "controlops":
+        raise SystemExit("Phase-C baseline requires isolated database controlops_phase_c")
+    if os.environ.get("AEA_LIVE_WALLET") == "1":
+        raise SystemExit("disable Phase-C live intent before baseline")
+    gate = os.environ.get("AEA_LIVE_SPEND_FILE")
+    if gate and (Path(gate).exists() or Path(gate).is_symlink()):
+        raise SystemExit("live-spend gate must be absent during baseline")
+    usdc, sol_balance = Decimal(args.usdc), Decimal(args.sol)
+    if usdc < 0 or sol_balance < 0:
+        raise SystemExit("opening balances must be non-negative")
+    root = Path(__file__).resolve().parents[2]
+    admin_file = Path(os.environ.get(
+        "CONTROL_OPS_POSTGRES_PASSWORD_FILE",
+        "/home/proteu5/.config/controlops/postgres/postgres_password",
+    ))
+    password = admin_file.read_text(encoding="utf-8").rstrip("\n")
+    common = {"host": os.environ.get("AEA_POSTGRES_HOST", "127.0.0.1"),
+              "port": int(os.environ.get("AEA_POSTGRES_PORT", "5432")),
+              "user": os.environ.get("AEA_POSTGRES_ADMIN_USER", "controlops_admin"),
+              "password": password}
+    admin = psycopg.connect(dbname="controlops", autocommit=True, **common)
+    exists = admin.execute("SELECT 1 FROM pg_database WHERE datname=%s", (target,)).fetchone()
+    if exists is None:
+        admin.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(target)))
+    admin.close()
+    conn = psycopg.connect(dbname=target, **common)
+    conn.execute((root / "platform/postgres/init/013-economic-schema.sql").read_text(), prepare=False)
+    conn.execute((root / "platform/postgres/init/014-economic-roles-and-grants.sql").read_text(), prepare=False)
+    history = conn.execute("""
+        SELECT (SELECT count(*) FROM economic.jobs)
+             + (SELECT count(*) FROM economic.revenues)
+             + (SELECT count(*) FROM economic.economic_costs)
+             + (SELECT count(*) FROM economic.payment_requests)
+             + (SELECT count(*) FROM economic.opportunities)
+    """).fetchone()[0]
+    if history:
+        raise SystemExit("refusing to baseline a Phase-C database containing economic history")
+    policy = load_policy(policy_path=args.policy, destinations_path=args.destinations)
+    if policy.document.wallet_phase != "C":
+        raise SystemExit("baseline policy must be Phase C")
+    existing = conn.execute(
+        "SELECT asset, opening_balance, current_balance FROM economic.agent_accounts"
+    ).fetchall()
+    expected = {"USDC": usdc, "SOL": sol_balance}
+    if existing:
+        observed = {row[0]: (Decimal(row[1]), Decimal(row[2])) for row in existing}
+        if observed != {asset: (value, value) for asset, value in expected.items()}:
+            raise SystemExit("existing Phase-C opening baseline conflicts; refusing overwrite")
+    else:
+        conn.execute("""
+            INSERT INTO economic.agent_accounts
+                (agent_id, asset, opening_balance, current_balance)
+            VALUES ('economic-agent', 'USDC', %s, %s),
+                   ('economic-agent', 'SOL', %s, %s)
+        """, (usdc, usdc, sol_balance, sol_balance))
+        conn.execute("""
+            INSERT INTO economic.transfers (account_id, direction, amount, asset, classification)
+            SELECT account_id, 'in', opening_balance, asset,
+                   CASE WHEN asset='USDC' THEN 'opening_capital' ELSE 'fee_reserve' END
+              FROM economic.agent_accounts
+             WHERE agent_id='economic-agent' AND opening_balance > 0
+        """)
+    conn.execute("UPDATE economic.policy_versions SET is_current=false")
+    conn.execute("""
+        INSERT INTO economic.policy_versions
+            (policy_version, policy_document, policy_hash, effective_from, created_by, is_current)
+        VALUES (%s, %s, %s, now(), 'operator-phase-c-baseline', true)
+        ON CONFLICT (policy_version) DO UPDATE SET
+            policy_document=excluded.policy_document, policy_hash=excluded.policy_hash,
+            effective_from=excluded.effective_from, created_by=excluded.created_by, is_current=true
+    """, (policy.document.policy_version, Jsonb(policy.raw), policy.policy_hash))
+    constitution = root / "autonomous_economic_agent/constitution/SOUL.md"
+    conn.execute("""
+        INSERT INTO economic.constitution_versions
+            (constitution_version, constitution_hash, effective_from, created_by)
+        VALUES ('constitution/v0.1.0', %s, now(), 'operator-phase-c-baseline')
+        ON CONFLICT (constitution_version) DO NOTHING
+    """, (sha256_hex(constitution.read_bytes()),))
+    conn.execute("""
+        INSERT INTO economic.supervisor_state
+            (singleton, frozen, signer_enabled, loop_enabled, updated_by)
+        VALUES (true, false, true, true, 'operator-phase-c-baseline')
+        ON CONFLICT (singleton) DO UPDATE SET frozen=false, signer_enabled=true,
+            loop_enabled=true, updated_at=now(), updated_by='operator-phase-c-baseline'
+    """)
+    payload = {"classification": "operator_funded_opening_baseline",
+               "wallet_phase": "C", "usdc": format_amount(usdc),
+               "sol_fee_reserve": format_amount(sol_balance),
+               "revenue_created": False, "pnl_created": False}
+    if conn.execute("SELECT count(*) FROM economic.audit_events WHERE event_type='operator.phase_c_baseline'").fetchone()[0] == 0:
+        conn.execute("""
+            INSERT INTO economic.audit_events (agent_id, event_type, payload, payload_hash)
+            VALUES ('economic-agent', 'operator.phase_c_baseline', %s, %s)
+        """, (Jsonb(payload), canonical_json_hash(payload)))
+    conn.commit()
+    rows = conn.execute("SELECT asset, opening_balance, current_balance FROM economic.agent_accounts ORDER BY asset").fetchall()
+    revenues = conn.execute("SELECT count(*) FROM economic.revenues").fetchone()[0]
+    pnl_rows = conn.execute("SELECT count(*) FROM economic.v_realised_pnl_by_job").fetchone()[0]
+    recon = conn.execute("SELECT asset, delta FROM economic.v_balance_reconciliation ORDER BY asset").fetchall()
+    conn.close()
+    print(json.dumps({"result": "PASS", "database": target,
+        "accounts": [{"asset": r[0], "opening": format_amount(r[1]), "current": format_amount(r[2])} for r in rows],
+        "revenue_rows": revenues, "pnl_rows": pnl_rows,
+        "reconciliation": [{"asset": r[0], "delta": format_amount(r[1])} for r in recon],
+        "live_spend_enabled": False}, sort_keys=True))
+
+
+if __name__ == "__main__":
+    main()

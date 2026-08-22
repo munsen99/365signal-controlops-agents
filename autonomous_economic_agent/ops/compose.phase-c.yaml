@@ -3,6 +3,7 @@
 services:
   economic-control:
     environment:
+      AEA_POSTGRES_DB: ${AEA_POSTGRES_DB:-controlops_phase_c}
       AEA_LIVE_WALLET: ${AEA_LIVE_WALLET:?explicit Phase-C operator intent required}
       AEA_POLICY_FILE: /secrets/policy.phase-c.yaml
       AEA_DESTINATIONS_FILE: /secrets/destinations.phase-c.yaml
@@ -75,6 +76,7 @@ services:
 
   economic-supervisor:
     environment:
+      AEA_POSTGRES_DB: ${AEA_POSTGRES_DB:-controlops_phase_c}
       AEA_POLICY_FILE: /secrets/policy.phase-c.yaml
     volumes:
       - ${AEA_SECRETS:?protected secrets directory required}/policy.phase-c.yaml:/secrets/policy.phase-c.yaml:ro
