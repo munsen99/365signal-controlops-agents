@@ -1,0 +1,74 @@
+# Overlay: docker compose -f ops/compose.economic.yaml -f ops/compose.phase-b.yaml
+# --env-file <protected phase-b.env> up -d
+services:
+  economic-control:
+    environment:
+      AEA_POLICY_FILE: /secrets/policy.phase-b.yaml
+      AEA_DESTINATIONS_FILE: /secrets/destinations.phase-b.yaml
+    volumes:
+      - ${AEA_SECRETS:-/home/proteu5/.config/controlops/economic}/policy.phase-b.yaml:/secrets/policy.phase-b.yaml:ro
+      - ${AEA_SECRETS:-/home/proteu5/.config/controlops/economic}/destinations.phase-b.yaml:/secrets/destinations.phase-b.yaml:ro
+
+  economic-policy:
+    build:
+      context: ..
+      dockerfile: ops/Dockerfile.economic
+      args: {AEA_INSTALL_SOLANA: "1"}
+    environment:
+      AEA_POLICY_FILE: /secrets/policy.phase-b.yaml
+      AEA_DESTINATIONS_FILE: /secrets/destinations.phase-b.yaml
+      AEA_SOLANA_NETWORK: ${AEA_SOLANA_NETWORK:?required}
+      AEA_SOLANA_PUBLIC_WALLET: ${AEA_SOLANA_PUBLIC_WALLET:?required}
+      AEA_SOLANA_TOKEN_MINT: ${AEA_SOLANA_TOKEN_MINT:?required}
+      AEA_SOLANA_TOKEN_DECIMALS: ${AEA_SOLANA_TOKEN_DECIMALS:-6}
+      AEA_SOLANA_SOURCE_TOKEN_ACCOUNT: ${AEA_SOLANA_SOURCE_TOKEN_ACCOUNT:?required}
+      AEA_SOLANA_DESTINATION_OWNER: ${AEA_SOLANA_DESTINATION_OWNER:?required}
+    volumes:
+      - ${AEA_SECRETS:-/home/proteu5/.config/controlops/economic}/policy.phase-b.yaml:/secrets/policy.phase-b.yaml:ro
+      - ${AEA_SECRETS:-/home/proteu5/.config/controlops/economic}/destinations.phase-b.yaml:/secrets/destinations.phase-b.yaml:ro
+
+  economic-signer:
+    build:
+      context: ..
+      dockerfile: ops/Dockerfile.economic
+      args: {AEA_INSTALL_SOLANA: "1"}
+    environment:
+      AEA_WALLET_PHASE: B
+      AEA_POLICY_HASH: ${AEA_POLICY_HASH:?Phase-B policy hash required}
+      AEA_SIGNER_KEY_FILE: /secrets/signer.key
+      AEA_SOLANA_NETWORK: ${AEA_SOLANA_NETWORK:?required}
+      AEA_SOLANA_RPC_URL: ${AEA_SOLANA_RPC_URL:?required}
+      AEA_SOLANA_PUBLIC_WALLET: ${AEA_SOLANA_PUBLIC_WALLET:?required}
+      AEA_SOLANA_TOKEN_MINT: ${AEA_SOLANA_TOKEN_MINT:?required}
+      AEA_SOLANA_TOKEN_DECIMALS: ${AEA_SOLANA_TOKEN_DECIMALS:-6}
+      AEA_SOLANA_SOURCE_TOKEN_ACCOUNT: ${AEA_SOLANA_SOURCE_TOKEN_ACCOUNT:?required}
+      AEA_SOLANA_DESTINATION_ID: ${AEA_SOLANA_DESTINATION_ID:?required}
+      AEA_SOLANA_DESTINATION_OWNER: ${AEA_SOLANA_DESTINATION_OWNER:?required}
+      AEA_SOLANA_COMMITMENT: ${AEA_SOLANA_COMMITMENT:-confirmed}
+      AEA_SOLANA_CONFIRMATION_TIMEOUT: ${AEA_SOLANA_CONFIRMATION_TIMEOUT:-90}
+      AEA_SOLANA_RPC_TIMEOUT: ${AEA_SOLANA_RPC_TIMEOUT:-20}
+    volumes:
+      - ${AEA_SECRETS:-/home/proteu5/.config/controlops/economic}/signer.key:/secrets/signer.key:ro
+
+  economic-wallet:
+    build:
+      context: ..
+      dockerfile: ops/Dockerfile.economic
+      args: {AEA_INSTALL_SOLANA: "1"}
+    environment:
+      AEA_WALLET_PHASE: B
+      AEA_SOLANA_NETWORK: ${AEA_SOLANA_NETWORK:?required}
+      AEA_SOLANA_RPC_URL: ${AEA_SOLANA_RPC_URL:?required}
+      AEA_SOLANA_PUBLIC_WALLET: ${AEA_SOLANA_PUBLIC_WALLET:?required}
+      AEA_SOLANA_TOKEN_MINT: ${AEA_SOLANA_TOKEN_MINT:?required}
+      AEA_SOLANA_TOKEN_DECIMALS: ${AEA_SOLANA_TOKEN_DECIMALS:-6}
+      AEA_SOLANA_SOURCE_TOKEN_ACCOUNT: ${AEA_SOLANA_SOURCE_TOKEN_ACCOUNT:?required}
+      AEA_SOLANA_COMMITMENT: ${AEA_SOLANA_COMMITMENT:-confirmed}
+      AEA_SOLANA_CONFIRMATION_TIMEOUT: ${AEA_SOLANA_CONFIRMATION_TIMEOUT:-90}
+      AEA_SOLANA_RPC_TIMEOUT: ${AEA_SOLANA_RPC_TIMEOUT:-20}
+
+  economic-supervisor:
+    environment:
+      AEA_POLICY_FILE: /secrets/policy.phase-b.yaml
+    volumes:
+      - ${AEA_SECRETS:-/home/proteu5/.config/controlops/economic}/policy.phase-b.yaml:/secrets/policy.phase-b.yaml:ro

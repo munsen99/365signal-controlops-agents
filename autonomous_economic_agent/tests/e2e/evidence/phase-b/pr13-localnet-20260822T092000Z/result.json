@@ -1,0 +1,196 @@
+{
+  "authority_chain": [
+    "Policy",
+    "HMAC approval",
+    "isolated Unix-socket signer",
+    "SPL transfer_checked",
+    "local Solana validator"
+  ],
+  "balances": {
+    "after_primary": {
+      "SOL": "9.99440484",
+      "USDC": "99.25"
+    },
+    "before": {
+      "SOL": "9.99440984",
+      "USDC": "99.375"
+    },
+    "destination_after_primary_token": "0.75",
+    "destination_before_token": "0.625",
+    "destination_final_token": "0.8125",
+    "final": {
+      "SOL": "9.99439984",
+      "USDC": "99.1875"
+    }
+  },
+  "canonical_context_bound_fields": [
+    "amount_base_units",
+    "decimals",
+    "destination_owner",
+    "destination_token_account",
+    "network",
+    "payer",
+    "source_mint",
+    "source_token_account"
+  ],
+  "completed_at": "2026-08-22T09:04:33.889692+00:00",
+  "confirmation": "confirmed",
+  "destination_owner": "2RKaLMgzewq3YZZ72zh8hvAheCvBypxuhV8ty9BBefYY",
+  "destination_token_account": "G6kGTww3RLLRKawuh9VRNDHpW6rqCyFuuJgmTALbUdqn",
+  "fees": {
+    "primary_lamports": 5000,
+    "sol_usdc_snapshot": "150.000000",
+    "total_sol": "0.00001000",
+    "uncertain_lamports": 5000
+  },
+  "genesis_hash": "Cghpr115WtDfyNiuWVLSgLjgmwGevdcCzAp4d7eDQbnM",
+  "ledger": {
+    "costs": [
+      {
+        "amount": "0.00000500",
+        "asset": "SOL",
+        "category": "network_fee",
+        "cost_id": "16b8a0d4-6f3f-47ab-90a2-ca3fedeb7fad",
+        "payment_request_id": "a262d9c6-b1eb-44cc-a3ce-bc4f4d4def57",
+        "usdc_equivalent": "0.00075000"
+      },
+      {
+        "amount": "0.12500000",
+        "asset": "USDC",
+        "category": "purchased_service",
+        "cost_id": "4e5023a1-3b3a-44b2-aaa1-408b19adeab8",
+        "payment_request_id": "a262d9c6-b1eb-44cc-a3ce-bc4f4d4def57",
+        "usdc_equivalent": "0.12500000"
+      },
+      {
+        "amount": "0.00000500",
+        "asset": "SOL",
+        "category": "network_fee",
+        "cost_id": "5c3ca7f9-6462-4a52-85b4-04dd4fed0576",
+        "payment_request_id": "dc5b98be-aab2-468c-b7de-12b5cdf65fe5",
+        "usdc_equivalent": "0.00075000"
+      },
+      {
+        "amount": "0.06250000",
+        "asset": "USDC",
+        "category": "purchased_service",
+        "cost_id": "8dd542a5-7e9f-4182-9a14-53c4a549ebf1",
+        "payment_request_id": "dc5b98be-aab2-468c-b7de-12b5cdf65fe5",
+        "usdc_equivalent": "0.06250000"
+      }
+    ],
+    "payments": [
+      {
+        "amount": "0.12500000",
+        "canonical_hash": "fd08353798f2c4f42f2f731a3aa11a9ebb90beae7de5ffb88ce38eba3468992e",
+        "request_id": "a262d9c6-b1eb-44cc-a3ce-bc4f4d4def57",
+        "transaction_reference": "54NyAMwEUry9crMjJvukyfcE6vRj3GMRDX3Sz28WKt7dsEuWqujSx3LC1tZKcjY8T2PvnUpDyTdFvtvoi3jbYrc1"
+      },
+      {
+        "amount": "0.06250000",
+        "canonical_hash": "a40558a40638a34bede3a602380e2c097c39af1bdb0b65da3ce150aa9432cc35",
+        "request_id": "dc5b98be-aab2-468c-b7de-12b5cdf65fe5",
+        "transaction_reference": "5gAYdJsteEsaoTG9MK1r73RhymsuWznadyKEsW1zsTJpwD71G3ghz4qVfaBbst2KSuG5mT326di6gfGLqfb3P9CT"
+      }
+    ]
+  },
+  "network": "localnet",
+  "policy_hash": "de6233d4dd6fe69a919a48a5c67f301d27f46205934a684c3b101ffd7688a640",
+  "policy_version": "policy/v0.1.0",
+  "primary": {
+    "amount": "0.125000",
+    "base_units": 125000,
+    "policy_decision": "approved",
+    "chain": {
+      "confirmation_status": "confirmed",
+      "error": null,
+      "fee_lamports": 5000,
+      "instruction": {
+        "info": {
+          "authority": "CWqTwLoGXCYU4gn7KxEcWTVFJuhzTMEmMrBKTM512Yag",
+          "destination": "G6kGTww3RLLRKawuh9VRNDHpW6rqCyFuuJgmTALbUdqn",
+          "mint": "6qiPKxxv6bdbaPmMMR1xMcGMd4V8ZVLXoi3vA2MqnJxC",
+          "source": "FxDi8yue9cWAemQUTGdvUaMaqoZpza31YPYZD5MKCPo7",
+          "tokenAmount": {
+            "amount": "125000",
+            "decimals": 6,
+            "uiAmount": 0.125,
+            "uiAmountString": "0.125"
+          }
+        },
+        "type": "transferChecked"
+      },
+      "slot": 1429
+    },
+    "replay_code": "IDEMPOTENT_REPLAY",
+    "replay_signature": "54NyAMwEUry9crMjJvukyfcE6vRj3GMRDX3Sz28WKt7dsEuWqujSx3LC1tZKcjY8T2PvnUpDyTdFvtvoi3jbYrc1",
+    "signature": "54NyAMwEUry9crMjJvukyfcE6vRj3GMRDX3Sz28WKt7dsEuWqujSx3LC1tZKcjY8T2PvnUpDyTdFvtvoi3jbYrc1"
+  },
+  "public_wallet": "CWqTwLoGXCYU4gn7KxEcWTVFJuhzTMEmMrBKTM512Yag",
+  "reconciliation": {
+    "code": "OK",
+    "mismatches": [],
+    "ok": true,
+    "rows": [
+      {
+        "agent_id": "economic-agent",
+        "asset": "SOL",
+        "delta": "0.000000",
+        "ledger_balance": "9.994400",
+        "opening_balance": "9.994410",
+        "reconstructed_balance": "9.994400"
+      },
+      {
+        "agent_id": "economic-agent",
+        "asset": "USDC",
+        "delta": "0.000000",
+        "ledger_balance": "99.187500",
+        "opening_balance": "99.375000",
+        "reconstructed_balance": "99.187500"
+      }
+    ]
+  },
+  "result": "PASS",
+  "rpc_endpoint": "http://127.0.0.1:18899",
+  "run_id": "pr13-localnet-20260822T092000Z",
+  "security": {
+    "arbitrary_signing": false,
+    "harness_loaded_private_key": false,
+    "mainnet": false,
+    "signer_socket_only": true,
+    "wallet_read_can_sign": false
+  },
+  "source_token_account": "FxDi8yue9cWAemQUTGdvUaMaqoZpza31YPYZD5MKCPo7",
+  "test_token_mint": "6qiPKxxv6bdbaPmMMR1xMcGMd4V8ZVLXoi3vA2MqnJxC",
+  "test_value_not_real_usdc": true,
+  "uncertain_response_loss": {
+    "amount": "0.062500",
+    "base_units": 62500,
+    "policy_decision": "approved",
+    "chain": {
+      "confirmation_status": "confirmed",
+      "error": null,
+      "fee_lamports": 5000,
+      "instruction": {
+        "info": {
+          "authority": "CWqTwLoGXCYU4gn7KxEcWTVFJuhzTMEmMrBKTM512Yag",
+          "destination": "G6kGTww3RLLRKawuh9VRNDHpW6rqCyFuuJgmTALbUdqn",
+          "mint": "6qiPKxxv6bdbaPmMMR1xMcGMd4V8ZVLXoi3vA2MqnJxC",
+          "source": "FxDi8yue9cWAemQUTGdvUaMaqoZpza31YPYZD5MKCPo7",
+          "tokenAmount": {
+            "amount": "62500",
+            "decimals": 6,
+            "uiAmount": 0.0625,
+            "uiAmountString": "0.0625"
+          }
+        },
+        "type": "transferChecked"
+      },
+      "slot": 1432
+    },
+    "one_signature": true,
+    "recovered_signature": "5gAYdJsteEsaoTG9MK1r73RhymsuWznadyKEsW1zsTJpwD71G3ghz4qVfaBbst2KSuG5mT326di6gfGLqfb3P9CT",
+    "signature": "5gAYdJsteEsaoTG9MK1r73RhymsuWznadyKEsW1zsTJpwD71G3ghz4qVfaBbst2KSuG5mT326di6gfGLqfb3P9CT"
+  },
+  "validator_version": "4.2.1"
+}

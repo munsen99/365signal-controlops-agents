@@ -94,6 +94,7 @@ class PolicySignerClient:
                 "tx_id": payload.get("tx_id"),
                 "canonical_hash": payload.get("canonical_hash"),
                 "replay": bool(payload.get("replay")),
+                "fee_lamports": payload.get("fee_lamports"),
             }
         )
 

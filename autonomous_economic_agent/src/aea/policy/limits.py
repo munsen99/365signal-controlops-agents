@@ -10,9 +10,9 @@ from aea.types import PolicyInput
 
 
 def check_wallet_phase(inp: PolicyInput, policy: PolicyDocument) -> str | None:
-    if inp.wallet_phase != "A" or policy.wallet_phase != "A":
-        return ReasonCode.UNSUPPORTED_WALLET_PHASE
     if inp.wallet_phase != policy.wallet_phase:
+        return ReasonCode.UNSUPPORTED_WALLET_PHASE
+    if inp.wallet_phase not in {"A", "B"}:
         return ReasonCode.UNSUPPORTED_WALLET_PHASE
     return None
 

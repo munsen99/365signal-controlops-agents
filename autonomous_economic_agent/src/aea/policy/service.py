@@ -138,6 +138,7 @@ class PolicyService:
         now: datetime | None = None,
         db_frozen_reader: Callable[[], Any] | None = None,
         signer_client: PolicySignerClient | None = None,
+        phase_b_context: dict[str, str] | None = None,
         debit_token: str | None = None,
     ) -> None:
         if not control_token:
@@ -151,6 +152,7 @@ class PolicyService:
         self._now = now
         self._db_frozen_reader = db_frozen_reader
         self._signer_client = signer_client
+        self._phase_b_context = phase_b_context
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
@@ -308,8 +310,7 @@ class PolicyService:
                 },
             )
             return
-        approved = ApprovedRequest.model_validate(
-            {
+        approved_body = {
                 "request_id": str(req.request_id),
                 "amount": format_amount(req.amount),
                 "asset": req.asset,
@@ -322,7 +323,19 @@ class PolicyService:
                 "approved_at": req.approved_at.isoformat(),
                 "correlation_id": str(output.correlation_id),
             }
-        )
+        if self._loaded.document.wallet_phase == "B":
+            if self._phase_b_context is None:
+                await _send_json(send, status=200, payload={"ok": False,
+                    "code": HttpCode.SIGNER_UNAVAILABLE, "decision": "approved",
+                    "request_id": str(req.request_id), "reason_code": "PHASE_B_CONFIG_MISSING"})
+                return
+            from decimal import Decimal
+            base = req.amount * (Decimal(10) ** int(self._phase_b_context["decimals"]))
+            if base != base.to_integral_value():
+                await _send_json(send, status=400, payload={"ok": False, "code": HttpCode.VALIDATION_ERROR})
+                return
+            approved_body["phase_b_context"] = {**self._phase_b_context, "amount_base_units": int(base)}
+        approved = ApprovedRequest.model_validate(approved_body)
         signed = await self._signer_client.sign(approved)
         body = {
             "ok": signed.ok,
@@ -336,6 +349,7 @@ class PolicyService:
             "policy_hash": output.policy_hash,
             "approved_amount": format_amount(output.approved_amount),
             "replay": signed.replay,
+            "fee_lamports": signed.fee_lamports,
             "correlation_id": str(output.correlation_id),
         }
         await _send_json(send, status=200, payload=body)
@@ -369,6 +383,7 @@ def create_app(
     now: datetime | None = None,
     db_frozen_reader: Callable[[], Any] | None = None,
     signer_client: PolicySignerClient | None = None,
+    phase_b_context: dict[str, str] | None = None,
 ) -> PolicyService:
     return PolicyService(
         control_token=control_token,
@@ -378,6 +393,7 @@ def create_app(
         now=now,
         db_frozen_reader=db_frozen_reader,
         signer_client=signer_client,
+        phase_b_context=phase_b_context,
     )
 
 
@@ -397,12 +413,34 @@ def create_app_from_env() -> PolicyService:
             signer_token=signer_token,
             signer_sock=os.environ.get("AEA_SIGNER_SOCK"),
         )
+    loaded = load_policy()
+    phase_b_context = None
+    if loaded.document.wallet_phase == "B":
+        from solders.pubkey import Pubkey
+        from spl.token.instructions import get_associated_token_address
+        names = ("AEA_SOLANA_NETWORK", "AEA_SOLANA_PUBLIC_WALLET", "AEA_SOLANA_TOKEN_MINT",
+                 "AEA_SOLANA_SOURCE_TOKEN_ACCOUNT", "AEA_SOLANA_DESTINATION_OWNER")
+        values = {name: os.environ.get(name) for name in names}
+        if any(not value for value in values.values()):
+            raise ValueError("Phase B public transaction context is incomplete")
+        mint = Pubkey.from_string(str(values["AEA_SOLANA_TOKEN_MINT"]))
+        owner = Pubkey.from_string(str(values["AEA_SOLANA_DESTINATION_OWNER"]))
+        phase_b_context = {
+            "network": str(values["AEA_SOLANA_NETWORK"]),
+            "payer": str(values["AEA_SOLANA_PUBLIC_WALLET"]),
+            "source_mint": str(mint),
+            "source_token_account": str(values["AEA_SOLANA_SOURCE_TOKEN_ACCOUNT"]),
+            "destination_owner": str(owner),
+            "destination_token_account": str(get_associated_token_address(owner, mint)),
+            "decimals": os.environ.get("AEA_SOLANA_TOKEN_DECIMALS", "6"),
+        }
     return create_app(
         control_token=control,
-        loaded=load_policy(),
+        loaded=loaded,
         model_token=model,
         freeze_path=freeze_path,
         signer_client=signer_client,
+        phase_b_context=phase_b_context,
     )
 
 

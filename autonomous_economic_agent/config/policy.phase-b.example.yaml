@@ -1,0 +1,43 @@
+# Phase-B operator template. Test value only; never mainnet USDC.
+policy_version: "policy/v0.1.0"
+unit_of_account: USDC
+daily_spend_timezone: UTC
+starting_treasury: {USDC: "0.000000", SOL: "0.000000"}
+limits:
+  max_outbound_usdc: "0.010000"
+  max_daily_discretionary_usdc: "0.050000"
+  max_capital_at_risk_usdc: "0.050000"
+  max_job_compute_usdc: "0.500000"
+  max_open_jobs: 3
+  required_margin_bps: 200
+  min_payment_probability: 0.6
+  max_job_seconds: 120
+assets:
+  permitted_treasury: [USDC]
+  fee_asset: SOL
+  sol_spend_requires_job: true
+  sol_max_fee_per_tx: "0.010000"
+  sol_usdc_snapshot: "150.000000"
+  sol_usdc_unknown_ceiling: "500.000000"
+cost_rates:
+  compute_usd_per_1k_tokens_in: "0.000000"
+  compute_usd_per_1k_tokens_out: "0.000000"
+  compute_usd_per_wall_second: "0.000100"
+  compute_floor_usdc: "0.001000"
+prohibited:
+  borrow: true
+  leverage: true
+  lend: true
+  speculate: true
+  arbitrary_swaps: true
+  unknown_contracts: true
+  wallet_transfer_without_job: true
+  agent_policy_mutation: true
+destinations: {allow_unclassified: false, file: destinations.phase-b.example.yaml}
+idempotency_ttl_seconds: 86400
+payment_settle_timeout_seconds: 3600
+wallet_phase: B
+emergency:
+  freeze_independent_of_agent: true
+  fail_closed_on_missing_freeze_file: false
+  fail_closed_on_unreadable_freeze_dir: true

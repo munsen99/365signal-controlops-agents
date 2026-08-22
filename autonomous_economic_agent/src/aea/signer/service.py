@@ -23,7 +23,7 @@ import httpx
 from pydantic import ValidationError
 
 from aea.policy.reasons import HttpCode
-from aea.signer.backend import SignRequest, SignResult, WalletDebitError
+from aea.signer.backend import SignRequest, SignResult, SignerBackend, WalletDebitError
 from aea.signer.mock import MockSigner
 from aea.types import format_amount
 
@@ -276,7 +276,7 @@ class SignerService:
     def __init__(
         self,
         *,
-        signer: MockSigner,
+        signer: SignerBackend,
         signer_token: str,
         debit_token: str,
         model_token: str | None = None,
@@ -488,7 +488,7 @@ def _result_payload(result: SignResult) -> dict[str, Any]:
 
 def create_app(
     *,
-    signer: MockSigner,
+    signer: SignerBackend,
     signer_token: str,
     debit_token: str,
     model_token: str | None = None,
@@ -528,15 +528,50 @@ def create_app_from_env() -> SignerService:
     policy_hash = os.environ.get("AEA_POLICY_HASH")
     if not policy_version or not policy_hash:
         raise ValueError("AEA_POLICY_VERSION and AEA_POLICY_HASH are required")
-    wallet_url = os.environ.get("AEA_WALLET_URL", WALLET_URL_DEFAULT)
-    debit = HttpWalletDebit(wallet_url, debit_token)
-    signer = MockSigner(
-        freeze_path=Path(freeze_raw),
-        expected_policy_version=policy_version,
-        expected_policy_hash=policy_hash,
-        debit=debit,
-        hmac_key=hmac_key,
-    )
+    phase = os.environ.get("AEA_WALLET_PHASE", "A")
+    if phase == "A":
+        wallet_url = os.environ.get("AEA_WALLET_URL", WALLET_URL_DEFAULT)
+        debit = HttpWalletDebit(wallet_url, debit_token)
+        signer: SignerBackend = MockSigner(
+            freeze_path=Path(freeze_raw), expected_policy_version=policy_version,
+            expected_policy_hash=policy_hash, debit=debit, hmac_key=hmac_key,
+        )
+    elif phase == "B":
+        import asyncio
+        from aea.signer.solana import SolanaSigner, load_protected_keypair
+        from aea.wallet.solana import SolanaConfig, SolanaWallet
+        required = {
+            "rpc_url": os.environ.get("AEA_SOLANA_RPC_URL"),
+            "public_wallet": os.environ.get("AEA_SOLANA_PUBLIC_WALLET"),
+            "token_mint": os.environ.get("AEA_SOLANA_TOKEN_MINT"),
+            "source_token_account": os.environ.get("AEA_SOLANA_SOURCE_TOKEN_ACCOUNT"),
+            "key_file": os.environ.get("AEA_SIGNER_KEY_FILE"),
+            "destination_id": os.environ.get("AEA_SOLANA_DESTINATION_ID"),
+            "destination_owner": os.environ.get("AEA_SOLANA_DESTINATION_OWNER"),
+        }
+        if any(not value for value in required.values()):
+            raise ValueError("Phase B Solana configuration is incomplete")
+        config = SolanaConfig.model_validate({
+            "wallet_phase": "B", "network": os.environ.get("AEA_SOLANA_NETWORK"),
+            "rpc_url": required["rpc_url"], "public_wallet": required["public_wallet"],
+            "token_mint": required["token_mint"],
+            "token_decimals": os.environ.get("AEA_SOLANA_TOKEN_DECIMALS", "6"),
+            "source_token_account": required["source_token_account"],
+            "commitment": os.environ.get("AEA_SOLANA_COMMITMENT", "confirmed"),
+            "confirmation_timeout_seconds": os.environ.get("AEA_SOLANA_CONFIRMATION_TIMEOUT", "60"),
+            "rpc_timeout_seconds": os.environ.get("AEA_SOLANA_RPC_TIMEOUT", "15"),
+        })
+        keypair = load_protected_keypair(str(required["key_file"]))
+        rpc = SolanaWallet()
+        asyncio.run(rpc.validate(config))
+        signer = SolanaSigner(
+            freeze_path=Path(freeze_raw), expected_policy_version=policy_version,
+            expected_policy_hash=policy_hash, hmac_key=hmac_key, config=config,
+            keypair=keypair, rpc=rpc,
+            approved_destinations={str(required["destination_id"]): str(required["destination_owner"])},
+        )
+    else:
+        raise ValueError("wallet phase must be A or B; mainnet Phase C is unavailable")
     return create_app(
         signer=signer,
         signer_token=signer_token,

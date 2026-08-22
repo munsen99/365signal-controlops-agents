@@ -225,6 +225,7 @@ class PaymentOrchestrator:
             replay=bool(executed.get("replay") or pending.get("replay")),
             approved_amount=executed.get("approved_amount") or format_amount(req.amount),
             canonical_hash=executed.get("canonical_hash"),
+            fee_lamports=executed.get("fee_lamports"),
         )
 
     def _complete_settled(
@@ -237,6 +238,7 @@ class PaymentOrchestrator:
         replay: bool,
         approved_amount: str | None = None,
         canonical_hash: str | None = None,
+        fee_lamports: int | None = None,
     ) -> dict[str, Any]:
         row = self._ledger.get_payment_request(request_id)
         if row["policy_decision"] != "approved":
@@ -273,6 +275,21 @@ class PaymentOrchestrator:
                 }
             )
         )
+        if fee_lamports:
+            self._ledger.record_cost(
+                CostCreate.model_validate(
+                    {
+                        "job_id": str(req.job_id),
+                        "category": "network_fee",
+                        "amount": format_amount(Decimal(fee_lamports) / Decimal(1_000_000_000)),
+                        "asset": "SOL",
+                        "payment_request_id": str(request_id),
+                        "evidence_reference": tx_id,
+                        "idempotency_key": f"fee-{req.idempotency_key}",
+                        "correlation_id": str(correlation_id),
+                    }
+                )
+            )
         mismatch = self._recon_mismatch(request_id=request_id, tx_id=tx_id)
         if mismatch is not None:
             return mismatch

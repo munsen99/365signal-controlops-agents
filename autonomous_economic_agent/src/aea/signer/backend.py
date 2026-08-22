@@ -60,6 +60,19 @@ class SignerError(Exception):
         self.message = message or code
 
 
+class PhaseBApprovalContext(AeaBaseModel):
+    """Public Solana intent fields MAC-bound by Policy before signer execution."""
+
+    network: str
+    payer: str
+    source_mint: str
+    source_token_account: str
+    destination_owner: str
+    destination_token_account: str
+    amount_base_units: int = Field(gt=0)
+    decimals: int = Field(ge=0, le=18)
+
+
 class ApprovedRequest(AeaBaseModel):
     """Canonical approved payment request (M0 §9) plus policy_hash binding."""
 
@@ -74,6 +87,7 @@ class ApprovedRequest(AeaBaseModel):
     approved_amount: Decimal
     approved_at: datetime
     correlation_id: UUID
+    phase_b_context: PhaseBApprovalContext | None = None
 
     @field_validator("amount", "approved_amount", mode="before")
     @classmethod
@@ -134,6 +148,7 @@ class SignResult(AeaBaseModel):
     tx_id: str | None = None
     canonical_hash: str | None = None
     replay: bool = False
+    fee_lamports: int | None = Field(default=None, ge=0)
 
 
 class WalletDebitError(Exception):
@@ -165,9 +180,9 @@ class SignerBackend(Protocol):
     def set_enabled(self, enabled: bool) -> None: ...
 
 
-def approved_canonical_dict(req: ApprovedRequest) -> dict[str, str]:
+def approved_canonical_dict(req: ApprovedRequest) -> dict[str, object]:
     """Exact key set hashed by the signer. policy_hash is an additive binding."""
-    return {
+    out: dict[str, object] = {
         "amount": format_amount(req.amount),
         "approved_amount": format_amount(req.approved_amount),
         "approved_at": req.approved_at.isoformat(),
@@ -180,6 +195,9 @@ def approved_canonical_dict(req: ApprovedRequest) -> dict[str, str]:
         "purpose": req.purpose,
         "request_id": str(req.request_id),
     }
+    if req.phase_b_context is not None:
+        out["phase_b_context"] = req.phase_b_context.model_dump(mode="json")
+    return out
 
 
 def canonical_approved_hash(req: ApprovedRequest) -> str:

@@ -1,0 +1,131 @@
+#!/usr/bin/env bash
+# Operator/test-only local validator lifecycle. Never exposed to Hermes/tools.
+set -o errexit
+set -o nounset
+set -o pipefail
+
+state_dir="${AEA_LOCALNET_STATE_DIR:-/tmp/aea-pr13-localnet}"
+agave_bin="${AEA_AGAVE_BIN:-/tmp/aea-pr13-agave-v4.2.1/solana-release/bin}"
+rpc_port="${AEA_LOCALNET_RPC_PORT:-18899}"
+faucet_port="${AEA_LOCALNET_FAUCET_PORT:-18900}"
+pid_file="${state_dir}/validator.pid"
+ledger_dir="${state_dir}/ledger"
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+aea_dir="$(cd -- "${script_dir}/.." && pwd)"
+aea_python="${AEA_PYTHON:-${aea_dir}/.venv/bin/python}"
+
+case "${state_dir}" in
+  /tmp/aea-pr13-localnet|/tmp/aea-pr13-localnet-*) ;;
+  *) echo "refusing unsafe localnet state path" >&2; exit 2 ;;
+esac
+
+usage() {
+  echo "Usage: scripts/phase-b-localnet start|status|provision|acceptance|stop|clean CONFIRM_CLEAN_LOCALNET" >&2
+}
+
+case "${1:-}" in
+  start)
+    install -d -m 0700 "${state_dir}"
+    if [[ -f "${pid_file}" ]] && kill -0 "$(<"${pid_file}")" 2>/dev/null; then
+      echo "local validator already running"
+      exit 0
+    fi
+    "${agave_bin}/solana-test-validator" \
+      --ledger "${ledger_dir}" --bind-address 127.0.0.1 \
+      --rpc-port "${rpc_port}" --faucet-port "${faucet_port}" \
+      --dynamic-port-range 18901-19000 --faucet-sol 1000 \
+      --limit-ledger-size 10000 >"${state_dir}/validator.log" 2>&1 &
+    validator_pid=$!
+    printf '%s\n' "${validator_pid}" >"${pid_file}"
+    for _ in $(seq 1 60); do
+      if "${agave_bin}/solana" --url "http://127.0.0.1:${rpc_port}" cluster-version >/dev/null 2>&1; then
+        echo "localnet ready on http://127.0.0.1:${rpc_port}"
+        exit 0
+      fi
+      sleep 1
+    done
+    echo "local validator did not become ready" >&2
+    exit 1
+    ;;
+  status)
+    "${agave_bin}/solana" --url "http://127.0.0.1:${rpc_port}" cluster-version
+    "${agave_bin}/solana" --url "http://127.0.0.1:${rpc_port}" genesis-hash
+    ;;
+  provision)
+    signer_key="${AEA_SIGNER_KEY_FILE:?AEA_SIGNER_KEY_FILE is required}"
+    destination_key="${AEA_DESTINATION_KEY_FILE:-/home/proteu5/.config/controlops/economic/phase-b-destination.key}"
+    [[ -f "${signer_key}" ]] || { echo "missing protected signer key" >&2; exit 1; }
+    if [[ ! -f "${destination_key}" ]]; then
+      "${aea_python}" -m aea.wallet.provision generate --key-file "${destination_key}" >/dev/null
+    fi
+    wallet_address="$("${aea_python}" -m aea.wallet.provision public-address --key-file "${signer_key}")"
+    destination_owner="$("${aea_python}" -m aea.wallet.provision public-address --key-file "${destination_key}")"
+    "${agave_bin}/solana" --url "http://127.0.0.1:${rpc_port}" airdrop 10 "${wallet_address}" >/dev/null
+    mint_json="$("${agave_bin}/spl-token" --url "http://127.0.0.1:${rpc_port}" create-token \
+      --decimals 6 --mint-authority "${wallet_address}" --fee-payer "${signer_key}" --output json)"
+    mint="$(printf '%s' "${mint_json}" | "${aea_python}" -c 'import json,sys; print(json.load(sys.stdin)["commandOutput"]["address"])')"
+    "${agave_bin}/spl-token" --url "http://127.0.0.1:${rpc_port}" create-account "${mint}" \
+      --owner "${wallet_address}" --fee-payer "${signer_key}" >/dev/null
+    "${agave_bin}/spl-token" --url "http://127.0.0.1:${rpc_port}" create-account "${mint}" \
+      --owner "${destination_owner}" --fee-payer "${signer_key}" >/dev/null
+    source_account="$("${aea_python}" -c \
+      'import sys; from solders.pubkey import Pubkey; from spl.token.instructions import get_associated_token_address; print(get_associated_token_address(Pubkey.from_string(sys.argv[1]), Pubkey.from_string(sys.argv[2])))' \
+      "${wallet_address}" "${mint}")"
+    destination_account="$("${aea_python}" -c \
+      'import sys; from solders.pubkey import Pubkey; from spl.token.instructions import get_associated_token_address; print(get_associated_token_address(Pubkey.from_string(sys.argv[1]), Pubkey.from_string(sys.argv[2])))' \
+      "${destination_owner}" "${mint}")"
+    "${agave_bin}/spl-token" --url "http://127.0.0.1:${rpc_port}" mint "${mint}" 100 "${source_account}" \
+      --mint-authority "${signer_key}" --fee-payer "${signer_key}" >/dev/null
+    umask 077
+    {
+      printf 'AEA_SOLANA_NETWORK=localnet\n'
+      printf 'AEA_SOLANA_RPC_URL=http://127.0.0.1:%s\n' "${rpc_port}"
+      printf 'AEA_SOLANA_PUBLIC_WALLET=%s\n' "${wallet_address}"
+      printf 'AEA_SOLANA_TOKEN_MINT=%s\n' "${mint}"
+      printf 'AEA_SOLANA_TOKEN_DECIMALS=6\n'
+      printf 'AEA_SOLANA_SOURCE_TOKEN_ACCOUNT=%s\n' "${source_account}"
+      printf 'AEA_SOLANA_DESTINATION_ID=localnet:test:recipient\n'
+      printf 'AEA_SOLANA_DESTINATION_OWNER=%s\n' "${destination_owner}"
+      printf 'AEA_SOLANA_DESTINATION_ACCOUNT=%s\n' "${destination_account}"
+      printf 'AEA_SOLANA_COMMITMENT=confirmed\n'
+    } >"${state_dir}/public.env"
+    echo "wallet=${wallet_address}"
+    echo "mint=${mint}"
+    echo "source_token_account=${source_account}"
+    echo "destination_owner=${destination_owner}"
+    echo "destination_token_account=${destination_account}"
+    ;;
+  acceptance)
+    [[ -f "${state_dir}/public.env" ]] || { echo "run provision first" >&2; exit 1; }
+    # Public network/account values only. Secret paths remain separately scoped.
+    set -o allexport
+    source "${state_dir}/public.env"
+    set +o allexport
+    : "${AEA_POLICY_FILE:?required}" "${AEA_DESTINATIONS_FILE:?required}"
+    : "${AEA_SIGNER_SOCK:?required}" "${AEA_SIGNER_TOKEN_FILE:?required}"
+    : "${AEA_SIGNER_HMAC_KEY_FILE:?required}" "${AEA_FREEZE_PATH:?required}"
+    : "${AEA_POSTGRES_ADMIN_PASSWORD_FILE:?required}" "${AEA_SOLANA_RUN_ID:?required}"
+    : "${AEA_SOLANA_EVIDENCE_FILE:?required}"
+    "${aea_python}" "${aea_dir}/tests/e2e/solana_localnet.py"
+    ;;
+  stop)
+    if [[ -f "${pid_file}" ]] && kill -0 "$(<"${pid_file}")" 2>/dev/null; then
+      kill "$(<"${pid_file}")"
+      for _ in $(seq 1 30); do
+        kill -0 "$(<"${pid_file}")" 2>/dev/null || break
+        sleep 1
+      done
+    fi
+    echo "local validator stopped"
+    ;;
+  clean)
+    [[ "${2:-}" == "CONFIRM_CLEAN_LOCALNET" ]] || { usage; exit 2; }
+    if [[ -f "${pid_file}" ]] && kill -0 "$(<"${pid_file}")" 2>/dev/null; then
+      echo "stop local validator before cleaning" >&2
+      exit 1
+    fi
+    rm -rf -- "${state_dir}"
+    echo "removed disposable localnet state ${state_dir}"
+    ;;
+  *) usage; exit 2 ;;
+esac

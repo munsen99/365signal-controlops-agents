@@ -1,0 +1,34 @@
+{
+  "run_id": "pr13-20260822T084300Z",
+  "result": "BLOCKED",
+  "classification": "DEV_TEST_FEE_RESERVE_UNAVAILABLE",
+  "network_attempts": [
+    {
+      "network": "devnet",
+      "rpc_endpoint": "https://api.devnet.solana.com",
+      "public_wallet": "CWqTwLoGXCYU4gn7KxEcWTVFJuhzTMEmMrBKTM512Yag",
+      "starting_lamports": 0,
+      "rpc_healthy": true,
+      "rpc_version": "4.2.1",
+      "genesis_hash": "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG",
+      "airdrop_lamports_attempted": [1000000000, 100000000, 10000000],
+      "outcome": "official RPC faucet rejected every request"
+    },
+    {
+      "network": "testnet",
+      "rpc_endpoint": "https://api.testnet.solana.com",
+      "public_wallet": "CWqTwLoGXCYU4gn7KxEcWTVFJuhzTMEmMrBKTM512Yag",
+      "starting_lamports": 0,
+      "rpc_healthy": true,
+      "rpc_version": "4.2.0",
+      "genesis_hash": "4uhcVJyU9pJkvQyS88uRDiswHXSCkY3zQawwpjk2NsNY",
+      "airdrop_lamports_attempted": [100000000],
+      "outcome": "official RPC faucet returned Internal error"
+    }
+  ],
+  "test_token_mint": null,
+  "transaction_signature": null,
+  "private_key_recorded": false,
+  "rpc_credential_recorded": false,
+  "reason": "No test SOL was available to create/fund the dedicated six-decimal development SPL mint or pay transaction fees. No economic transfer was attempted and no acceptance claim is made."
+}

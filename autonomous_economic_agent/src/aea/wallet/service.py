@@ -304,6 +304,70 @@ class WalletService:
         )
 
 
+class SolanaReadService:
+    """Phase-B keyless wallet HTTP boundary: balances and chain evidence only."""
+
+    def __init__(self, *, wallet: Any, config: Any, read_token: str,
+                 debit_token: str, credit_token: str,
+                 model_token: str | None = None, control_token: str | None = None) -> None:
+        self._wallet = wallet
+        self._config = config
+        self._read = read_token
+        self._debit = debit_token
+        self._credit = credit_token
+        self._model = model_token
+        self._control = control_token
+
+    def _authorize(self, headers: dict[str, str]) -> HttpCode | None:
+        token = _bearer(headers)
+        if token is None:
+            return HttpCode.UNAUTHENTICATED
+        if compare_digest(token, self._read):
+            return None
+        if any(compare_digest(token, known) for known in
+               (self._debit, self._credit, self._model, self._control) if known):
+            return HttpCode.FORBIDDEN
+        return HttpCode.UNAUTHENTICATED
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            return
+        method, path = scope["method"], scope["path"]
+        if method == "GET" and path == "/health":
+            await _send_json(send, status=200, payload={"ok": True, "code": HttpCode.OK, "wallet_phase": "B"})
+            return
+        if method == "POST" and path in {"/v1/wallet/debit", "/v1/wallet/credit"}:
+            # The Phase-B wallet process cannot sign even with Phase-A mutation
+            # credentials. Only the isolated signer talks to the transfer RPC path.
+            await _send_json(send, status=403, payload={"ok": False, "code": HttpCode.FORBIDDEN})
+            return
+        denied = self._authorize(_header_map(scope))
+        if denied:
+            await _send_json(send, status=_status_for(denied), payload={"ok": False, "code": denied})
+            return
+        if method == "GET" and path == "/v1/wallet/balances":
+            try:
+                balances = await self._wallet.balances(self._config)
+            except Exception:
+                await _send_json(send, status=503, payload={"ok": False, "code": HttpCode.NETWORK_FAILURE})
+                return
+            await _send_json(send, status=200, payload={"ok": True, "code": HttpCode.OK,
+                "balances": {k: format_amount(v) for k, v in balances.items()},
+                "public_wallet": self._config.public_wallet, "network": self._config.network})
+            return
+        if method == "GET" and path.startswith("/v1/wallet/tx/"):
+            signature = path.removeprefix("/v1/wallet/tx/")
+            try:
+                evidence = await self._wallet.lookup(self._config, signature)
+            except Exception:
+                await _send_json(send, status=503, payload={"ok": False, "code": HttpCode.NETWORK_FAILURE})
+                return
+            await _send_json(send, status=200, payload={"ok": True, "code": HttpCode.OK,
+                "tx": evidence.model_dump(mode="json")})
+            return
+        await _send_json(send, status=404, payload={"ok": False, "code": HttpCode.NOT_FOUND})
+
+
 def create_app(
     *,
     wallet: MockWallet | None = None,
@@ -335,12 +399,32 @@ def _read_token(env_name: str, file_env: str) -> str | None:
     return None
 
 
-def create_app_from_env() -> WalletService:
+def create_app_from_env() -> WalletService | SolanaReadService:
     debit = _read_token("AEA_WALLET_DEBIT_TOKEN", "AEA_WALLET_DEBIT_TOKEN_FILE")
     credit = _read_token("AEA_WALLET_CREDIT_TOKEN", "AEA_WALLET_CREDIT_TOKEN_FILE")
     read = _read_token("AEA_WALLET_READ_TOKEN", "AEA_WALLET_READ_TOKEN_FILE")
     if not debit or not credit or not read:
         raise ValueError("wallet debit, credit, and read tokens are required")
+    phase = os.environ.get("AEA_WALLET_PHASE", "A")
+    if phase == "B":
+        from aea.wallet.solana import SolanaConfig, SolanaWallet
+        config = SolanaConfig.model_validate({
+            "wallet_phase": "B", "network": os.environ.get("AEA_SOLANA_NETWORK"),
+            "rpc_url": os.environ.get("AEA_SOLANA_RPC_URL"),
+            "public_wallet": os.environ.get("AEA_SOLANA_PUBLIC_WALLET"),
+            "token_mint": os.environ.get("AEA_SOLANA_TOKEN_MINT"),
+            "token_decimals": os.environ.get("AEA_SOLANA_TOKEN_DECIMALS", "6"),
+            "source_token_account": os.environ.get("AEA_SOLANA_SOURCE_TOKEN_ACCOUNT"),
+            "commitment": os.environ.get("AEA_SOLANA_COMMITMENT", "confirmed"),
+            "confirmation_timeout_seconds": os.environ.get("AEA_SOLANA_CONFIRMATION_TIMEOUT", "60"),
+            "rpc_timeout_seconds": os.environ.get("AEA_SOLANA_RPC_TIMEOUT", "15"),
+        })
+        return SolanaReadService(wallet=SolanaWallet(), config=config, read_token=read,
+            debit_token=debit, credit_token=credit,
+            model_token=_read_token("AEA_MODEL_TOKEN", "AEA_MODEL_TOKEN_FILE"),
+            control_token=_read_token("AEA_CONTROL_TOKEN", "AEA_CONTROL_TOKEN_FILE"))
+    if phase != "A":
+        raise ValueError("wallet phase must be A or B")
     return create_app(
         debit_token=debit,
         credit_token=credit,

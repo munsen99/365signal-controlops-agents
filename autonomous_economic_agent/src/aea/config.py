@@ -232,9 +232,8 @@ def load_policy(
     destinations = DestinationsDocument.model_validate(dest_raw)
     if document.destinations.allow_unclassified:
         raise ValueError("allow_unclassified must be false")
-    if document.wallet_phase != "A":
-        # M0/M1 foundation: live/devnet wallets are later PRs.
-        raise ValueError("PR 1 ships wallet_phase A only")
+    if document.wallet_phase == "C":
+        raise ValueError("wallet_phase A/B only; wallet_phase C is reserved for PR14")
     policy_hash = canonical_yaml_hash(raw)
     return LoadedPolicy(
         document=document,

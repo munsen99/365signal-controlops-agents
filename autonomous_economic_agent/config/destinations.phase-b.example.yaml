@@ -1,0 +1,10 @@
+# Replace the placeholder owner in operator-owned configuration. The signer
+# derives and verifies its associated token account for the configured mint.
+classifications:
+  - id: "devnet:test:recipient"
+    class: marketplace_escrow
+    allowed: true
+    max_usdc: "0.010000"
+  - id: unknown
+    class: unknown
+    allowed: false
