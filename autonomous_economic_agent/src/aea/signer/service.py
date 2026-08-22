@@ -572,8 +572,45 @@ def create_app_from_env() -> SignerService:
             live_spend_path=os.environ.get("AEA_LIVE_SPEND_FILE") if phase == "C" else None,
             live_operator_intent=os.environ.get("AEA_LIVE_WALLET") if phase == "C" else None,
         )
+    elif phase == "E":
+        import asyncio
+        from aea.signer.evm import EvmSigner, load_protected_evm_key
+        from aea.wallet.evm import EvmConfig, EvmWallet
+        required = {
+            "rpc_url": _read_token("AEA_EVM_RPC_URL", "AEA_EVM_RPC_URL_FILE"),
+            "network": os.environ.get("AEA_EVM_NETWORK"), "chain_id": os.environ.get("AEA_EVM_CHAIN_ID"),
+            "public_wallet": os.environ.get("AEA_EVM_PUBLIC_WALLET"),
+            "token_contract": os.environ.get("AEA_EVM_USDC_CONTRACT"),
+            "key_file": os.environ.get("AEA_EVM_SIGNER_KEY_FILE"),
+            "destination_id": os.environ.get("AEA_EVM_DESTINATION_ID"),
+            "destination_address": os.environ.get("AEA_EVM_DESTINATION_ADDRESS"),
+            "state_dir": os.environ.get("AEA_EVM_SIGNER_STATE_DIR"),
+        }
+        if any(not value for value in required.values()):
+            raise ValueError("EVM signer configuration is incomplete")
+        config = EvmConfig.model_validate({
+            "network": required["network"], "chain_id": required["chain_id"], "rpc_url": required["rpc_url"],
+            "public_wallet": required["public_wallet"], "token_contract": required["token_contract"],
+            "confirmations": os.environ.get("AEA_EVM_CONFIRMATIONS", "12"),
+            "confirmation_timeout_seconds": os.environ.get("AEA_EVM_CONFIRMATION_TIMEOUT", "120"),
+            "rpc_timeout_seconds": os.environ.get("AEA_EVM_RPC_TIMEOUT", "20"),
+            "max_gas_limit": os.environ.get("AEA_EVM_MAX_GAS_LIMIT", "100000"),
+            "max_fee_per_gas_wei": os.environ.get("AEA_EVM_MAX_FEE_PER_GAS_WEI", "2000000000"),
+            "max_priority_fee_per_gas_wei": os.environ.get("AEA_EVM_MAX_PRIORITY_FEE_PER_GAS_WEI", "100000000"),
+            "max_total_fee_wei": os.environ.get("AEA_EVM_MAX_TOTAL_FEE_WEI", "200000000000000"),
+            "live_spend": os.environ.get("AEA_LIVE_WALLET") == "1",
+        })
+        account = load_protected_evm_key(str(required["key_file"]))
+        rpc = EvmWallet()
+        asyncio.run(rpc.validate(config))
+        signer = EvmSigner(freeze_path=Path(freeze_raw), expected_policy_version=policy_version,
+            expected_policy_hash=policy_hash, hmac_key=hmac_key, config=config, account=account, rpc=rpc,
+            approved_destinations={str(required["destination_id"]): str(required["destination_address"])},
+            live_spend_path=os.environ.get("AEA_LIVE_SPEND_FILE") if config.network == "base-mainnet" else None,
+            live_operator_intent=os.environ.get("AEA_LIVE_WALLET") if config.network == "base-mainnet" else None,
+            state_dir=str(required["state_dir"]))
     else:
-        raise ValueError("wallet phase must be A, B, or C")
+        raise ValueError("wallet phase must be A, B, C, or E")
     return create_app(
         signer=signer,
         signer_token=signer_token,

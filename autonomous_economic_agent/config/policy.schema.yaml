@@ -34,6 +34,8 @@ properties:
         $ref: "#/$defs/unsignedMoney"
       SOL:
         $ref: "#/$defs/unsignedMoney"
+      ETH:
+        $ref: "#/$defs/unsignedMoney"
   limits:
     type: object
     additionalProperties: false
@@ -85,7 +87,7 @@ properties:
         items:
           const: USDC
       fee_asset:
-        const: SOL
+        enum: [SOL, ETH]
       sol_spend_requires_job:
         type: boolean
       sol_max_fee_per_tx:
@@ -158,7 +160,30 @@ properties:
     minimum: 1
   wallet_phase:
     type: string
-    enum: [A, B, C]
+    enum: [A, B, C, E]
+  evm:
+    type: object
+    additionalProperties: false
+    required: [rail, network, chain_id, operation, usdc_contract, decimals,
+      max_gas_limit, max_fee_per_gas_wei, max_priority_fee_per_gas_wei,
+      max_total_fee_wei, confirmations, contract_calls_enabled,
+      native_fee_usdc_snapshot, native_fee_rate_source, native_fee_rate_observed_at]
+    properties:
+      rail: {const: evm}
+      network: {enum: [base-local, base-sepolia, base-mainnet]}
+      chain_id: {type: integer, minimum: 1}
+      operation: {const: erc20_transfer}
+      usdc_contract: {type: string}
+      decimals: {const: 6}
+      max_gas_limit: {type: integer, minimum: 21000, maximum: 1000000}
+      max_fee_per_gas_wei: {type: integer, minimum: 1}
+      max_priority_fee_per_gas_wei: {type: integer, minimum: 0}
+      max_total_fee_wei: {type: integer, minimum: 1}
+      confirmations: {type: integer, minimum: 1, maximum: 1000}
+      contract_calls_enabled: {const: false}
+      native_fee_usdc_snapshot: {$ref: "#/$defs/unsignedMoney"}
+      native_fee_rate_source: {type: string, minLength: 1}
+      native_fee_rate_observed_at: {type: string, format: date-time}
   emergency:
     type: object
     additionalProperties: false

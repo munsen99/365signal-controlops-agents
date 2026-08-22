@@ -22,6 +22,7 @@ from aea.hashing import canonical_json_hash
 from aea.ledger.errors import LedgerError
 from aea.ledger.models import (
     AuditWrite,
+    ChainEvidenceCreate,
     CostCreate,
     DecisionCreate,
     JobAccept,
@@ -40,7 +41,7 @@ from aea.ledger.transitions import (
     ensure_transition,
 )
 from aea.policy.reasons import HttpCode, ReasonCode
-from aea.types import format_amount
+from aea.types import format_amount, format_asset_amount
 
 _SECRET_PARTS = (
     "token",
@@ -643,8 +644,14 @@ class LedgerService:
                     raise LedgerError(HttpCode.NOT_FOUND, "payment request not found")
                 if pay["policy_decision"] != "approved" or pay["transaction_reference"] is None:
                     raise LedgerError(HttpCode.CONFLICT, "cash cost requires settled payment request")
-            snapshot = self._policy.document.assets.sol_usdc_snapshot
-            ceiling = self._policy.document.assets.sol_usdc_unknown_ceiling
+            if req.asset == "ETH":
+                if self._policy.document.evm is None:
+                    raise LedgerError(HttpCode.VALIDATION_ERROR, "ETH cost requires EVM policy rate evidence")
+                snapshot = self._policy.document.evm.native_fee_usdc_snapshot
+                ceiling = snapshot
+            else:
+                snapshot = self._policy.document.assets.sol_usdc_snapshot
+                ceiling = self._policy.document.assets.sol_usdc_unknown_ceiling
             equiv = usdc_equivalent(
                 amount=req.amount, asset=req.asset, snapshot=snapshot, ceiling=ceiling
             )
@@ -684,6 +691,36 @@ class LedgerService:
             out["replay"] = False
             return out
 
+        return self._savepoint(inner)
+
+    def record_chain_evidence(self, req: ChainEvidenceCreate) -> dict[str, Any]:
+        """Persist verified chain-specific fields exactly once; never interprets a hash as settlement."""
+        def inner() -> dict[str, Any]:
+            existing = self._conn.execute(
+                "SELECT * FROM chain_transaction_evidence WHERE payment_request_id = %s",
+                (req.payment_request_id,),
+            ).fetchone()
+            fingerprint = req.model_dump(mode="python")
+            if existing is not None:
+                prior = {key: existing[key] for key in fingerprint}
+                for key in ("chain_id", "block_number", "gas_used", "effective_gas_price_wei", "fee_wei"):
+                    prior[key] = int(prior[key])
+                prior["fee_usdc_snapshot"] = format_amount(_dec(prior["fee_usdc_snapshot"]))
+                if prior != fingerprint:
+                    raise LedgerError(HttpCode.IDEMPOTENCY_CONFLICT)
+                return {**dict(existing), "replay": True}
+            row = self._conn.execute(
+                """INSERT INTO chain_transaction_evidence
+                   (payment_request_id, rail, network, chain_id, transaction_hash, block_number,
+                    token_contract, gas_used, effective_gas_price_wei, fee_wei,
+                    fee_usdc_snapshot, fee_rate_source, fee_rate_observed_at)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *""",
+                (req.payment_request_id, req.rail, req.network, req.chain_id, req.transaction_hash.lower(),
+                 req.block_number, req.token_contract, req.gas_used,
+                 req.effective_gas_price_wei, req.fee_wei, req.fee_usdc_snapshot,
+                 req.fee_rate_source, req.fee_rate_observed_at),
+            ).fetchone()
+            return {**dict(row), "replay": False}
         return self._savepoint(inner)
 
     def record_verified_revenue(self, req: RevenueCreate) -> dict[str, Any]:
@@ -1126,13 +1163,13 @@ class LedgerService:
                     {"asset": asset, "reason": "wallet_missing", "ledger": row["ledger_balance"]}
                 )
                 continue
-            if format_amount(wallet) != row["ledger_balance"]:
+            if format_asset_amount(wallet, asset) != format_asset_amount(ledger, asset):
                 mismatches.append(
                     {
                         "asset": asset,
                         "reason": "wallet_ledger_mismatch",
-                        "wallet": format_amount(wallet),
-                        "ledger": row["ledger_balance"],
+                        "wallet": format_asset_amount(wallet, asset),
+                        "ledger": format_asset_amount(ledger, asset),
                     }
                 )
             if _dec(row["delta"]) != Decimal("0"):

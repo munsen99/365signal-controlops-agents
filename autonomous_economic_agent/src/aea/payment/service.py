@@ -20,6 +20,7 @@ from aea.control.schemas import RequestPaymentRequest
 from aea.ledger.errors import LedgerError
 from aea.ledger.models import (
     AuditWrite,
+    ChainEvidenceCreate,
     CostCreate,
     PaymentCreate,
     PaymentDecisionWrite,
@@ -226,6 +227,8 @@ class PaymentOrchestrator:
             approved_amount=executed.get("approved_amount") or format_amount(req.amount),
             canonical_hash=executed.get("canonical_hash"),
             fee_lamports=executed.get("fee_lamports"),
+            fee_wei=executed.get("fee_wei"),
+            chain_evidence=executed,
         )
 
     def _complete_settled(
@@ -239,6 +242,8 @@ class PaymentOrchestrator:
         approved_amount: str | None = None,
         canonical_hash: str | None = None,
         fee_lamports: int | None = None,
+        fee_wei: int | None = None,
+        chain_evidence: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         row = self._ledger.get_payment_request(request_id)
         if row["policy_decision"] != "approved":
@@ -290,6 +295,35 @@ class PaymentOrchestrator:
                     }
                 )
             )
+        if fee_wei:
+            self._ledger.record_cost(
+                CostCreate.model_validate(
+                    {
+                        "job_id": str(req.job_id),
+                        "category": "network_fee",
+                        "amount": format(Decimal(fee_wei) / Decimal(1_000_000_000_000_000_000), "f"),
+                        "asset": "ETH",
+                        "payment_request_id": str(request_id),
+                        "evidence_reference": tx_id,
+                        "idempotency_key": f"fee-{req.idempotency_key}",
+                        "correlation_id": str(correlation_id),
+                    }
+                )
+            )
+            evidence = chain_evidence or {}
+            evm_policy = self._loaded.document.evm
+            if evm_policy is None:
+                raise LedgerError(HttpCode.VALIDATION_ERROR, "EVM evidence requires EVM policy")
+            self._ledger.record_chain_evidence(ChainEvidenceCreate.model_validate({
+                "payment_request_id": str(request_id), "rail": evidence.get("rail"),
+                "network": evidence.get("network"), "chain_id": evidence.get("chain_id"),
+                "transaction_hash": tx_id, "block_number": evidence.get("block_number"),
+                "token_contract": evidence.get("token_contract"), "gas_used": evidence.get("gas_used"),
+                "effective_gas_price_wei": evidence.get("effective_gas_price_wei"), "fee_wei": fee_wei,
+                "fee_usdc_snapshot": evm_policy.native_fee_usdc_snapshot,
+                "fee_rate_source": evm_policy.native_fee_rate_source,
+                "fee_rate_observed_at": evm_policy.native_fee_rate_observed_at,
+            }))
         mismatch = self._recon_mismatch(request_id=request_id, tx_id=tx_id)
         if mismatch is not None:
             return mismatch

@@ -13,6 +13,7 @@ from pydantic import ValidationError
 from aea.config import load_policy
 from aea.ledger.errors import LedgerError
 from aea.ledger.models import (
+    ChainEvidenceCreate,
     CostCreate,
     DecisionCreate,
     JobAccept,
@@ -624,6 +625,28 @@ def test_wallet_ledger_recon_and_mismatch(ledger: LedgerService) -> None:
     )
     matched = ledger.reconcile_with_wallet(wallet.get_balances())
     assert matched["ok"] is True
+
+
+def test_evm_chain_evidence_is_exact_and_idempotent(ledger: LedgerService) -> None:
+    opp = _opp(ledger)
+    job = _accept(ledger, opp["opportunity_id"])
+    pay = ledger.create_payment_request(PaymentCreate.model_validate({
+        "job_id": str(job["job_id"]), "amount": "0.010000", "asset": "USDC",
+        "destination": "base:approved:test", "purpose": "evm fixture",
+        "correlation_id": str(uuid4()), "idempotency_key": f"evm-pay-{uuid4().hex[:12]}"}))
+    body = ChainEvidenceCreate.model_validate({"payment_request_id": str(pay["request_id"]),
+        "rail": "evm", "network": "base-local", "chain_id": 31337,
+        "transaction_hash": "0x" + "ab" * 32, "block_number": 7,
+        "token_contract": "0x" + "22" * 20, "gas_used": 55123,
+        "effective_gas_price_wei": 123456789, "fee_wei": 6805308570747,
+        "fee_usdc_snapshot": "2500.000000", "fee_rate_source": "test fixture",
+        "fee_rate_observed_at": "2026-08-22T00:00:00Z"})
+    first = ledger.record_chain_evidence(body)
+    replay = ledger.record_chain_evidence(body)
+    assert not first["replay"] and replay["replay"]
+    changed = body.model_copy(update={"fee_wei": body.fee_wei + 1})
+    with pytest.raises(LedgerError, match="IDEMPOTENCY_CONFLICT"):
+        ledger.record_chain_evidence(changed)
 
 
 def test_decision_and_audit_scrub_secrets(ledger: LedgerService) -> None:

@@ -1,0 +1,37 @@
+#!/usr/bin/env python3
+"""Operator-only dedicated EVM key provisioning; prints only the address."""
+from __future__ import annotations
+
+import os
+import stat
+import sys
+from pathlib import Path
+
+from eth_account import Account
+
+
+def main() -> int:
+    if len(sys.argv) != 2:
+        print("usage: evm-keygen /protected/path/evm-signer.key", file=sys.stderr)
+        return 2
+    target = Path(sys.argv[1])
+    if target.exists() or target.is_symlink():
+        print("refusing to replace an existing key path", file=sys.stderr)
+        return 1
+    parent = target.parent
+    info = os.lstat(parent)
+    if stat.S_ISLNK(info.st_mode) or not stat.S_ISDIR(info.st_mode):
+        print("key parent must be a non-symlink directory", file=sys.stderr)
+        return 1
+    account = Account.create()
+    fd = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+    with os.fdopen(fd, "w", encoding="ascii") as stream:
+        stream.write(account.key.hex() + "\n")
+        stream.flush()
+        os.fsync(stream.fileno())
+    print(account.address)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

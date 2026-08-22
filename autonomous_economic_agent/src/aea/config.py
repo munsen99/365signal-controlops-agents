@@ -7,12 +7,13 @@ or the package ``config/`` directory shipped in this repository.
 from __future__ import annotations
 
 import os
+from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
 from typing import Any, Literal
 
 import yaml
-from pydantic import ConfigDict, Field, field_validator
+from pydantic import ConfigDict, Field, field_validator, model_validator
 
 from aea.hashing import canonical_yaml_hash
 from aea.types import AeaBaseModel, WalletPhase, format_amount, parse_unsigned_amount
@@ -26,8 +27,9 @@ DEFAULT_DESTINATIONS_PATH = DEFAULT_CONFIG_DIR / "destinations.yaml"
 class StartingTreasury(AeaBaseModel):
     USDC: Decimal
     SOL: Decimal
+    ETH: Decimal = Decimal("0")
 
-    @field_validator("USDC", "SOL", mode="before")
+    @field_validator("USDC", "SOL", "ETH", mode="before")
     @classmethod
     def _money(cls, value: object) -> Decimal:
         return parse_unsigned_amount(value)
@@ -57,7 +59,7 @@ class PolicyLimits(AeaBaseModel):
 
 class PolicyAssets(AeaBaseModel):
     permitted_treasury: list[Literal["USDC"]]
-    fee_asset: Literal["SOL"]
+    fee_asset: Literal["SOL", "ETH"]
     sol_spend_requires_job: bool
     sol_max_fee_per_tx: Decimal
     sol_usdc_snapshot: Decimal
@@ -71,6 +73,29 @@ class PolicyAssets(AeaBaseModel):
     )
     @classmethod
     def _money(cls, value: object) -> Decimal:
+        return parse_unsigned_amount(value)
+
+
+class EvmPolicy(AeaBaseModel):
+    rail: Literal["evm"] = "evm"
+    network: Literal["base-local", "base-sepolia", "base-mainnet"]
+    chain_id: int = Field(gt=0)
+    operation: Literal["erc20_transfer"] = "erc20_transfer"
+    usdc_contract: str
+    decimals: Literal[6] = 6
+    max_gas_limit: int = Field(ge=21_000, le=1_000_000)
+    max_fee_per_gas_wei: int = Field(gt=0)
+    max_priority_fee_per_gas_wei: int = Field(ge=0)
+    max_total_fee_wei: int = Field(gt=0)
+    confirmations: int = Field(ge=1, le=1000)
+    contract_calls_enabled: Literal[False] = False
+    native_fee_usdc_snapshot: Decimal = Field(gt=0)
+    native_fee_rate_source: str = Field(min_length=1)
+    native_fee_rate_observed_at: datetime
+
+    @field_validator("native_fee_usdc_snapshot", mode="before")
+    @classmethod
+    def _native_rate(cls, value: object) -> Decimal:
         return parse_unsigned_amount(value)
 
 
@@ -128,6 +153,15 @@ class PolicyDocument(AeaBaseModel):
     payment_settle_timeout_seconds: int = Field(ge=1)
     wallet_phase: WalletPhase
     emergency: EmergencyFlags
+    evm: EvmPolicy | None = None
+
+    @model_validator(mode="after")
+    def _evm_required_for_phase(self) -> "PolicyDocument":
+        if self.wallet_phase == "E" and self.evm is None:
+            raise ValueError("wallet phase E requires EVM policy")
+        if self.wallet_phase != "E" and self.evm is not None:
+            raise ValueError("EVM policy is only valid for wallet phase E")
+        return self
 
 
 class DestinationEntry(AeaBaseModel):

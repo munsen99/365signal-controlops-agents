@@ -5,5 +5,7 @@ COPY . /app
 RUN pip install --no-cache-dir -e .
 ARG AEA_INSTALL_SOLANA=0
 RUN if [ "${AEA_INSTALL_SOLANA}" = "1" ]; then pip install --no-cache-dir -e '.[solana]'; fi
+ARG AEA_INSTALL_EVM=0
+RUN if [ "${AEA_INSTALL_EVM}" = "1" ]; then pip install --no-cache-dir -e '.[evm]'; fi
 ENV PYTHONUNBUFFERED=1
 CMD ["python", "-m", "aea.control.app"]

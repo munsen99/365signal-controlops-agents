@@ -95,6 +95,14 @@ class PolicySignerClient:
                 "canonical_hash": payload.get("canonical_hash"),
                 "replay": bool(payload.get("replay")),
                 "fee_lamports": payload.get("fee_lamports"),
+                "fee_wei": payload.get("fee_wei"),
+                "gas_used": payload.get("gas_used"),
+                "effective_gas_price_wei": payload.get("effective_gas_price_wei"),
+                "rail": payload.get("rail"),
+                "network": payload.get("network"),
+                "chain_id": payload.get("chain_id"),
+                "token_contract": payload.get("token_contract"),
+                "block_number": payload.get("block_number"),
             }
         )
 

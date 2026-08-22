@@ -12,9 +12,10 @@ from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_valid
 
 MONEY_AMOUNT_RE = re.compile(r"^[0-9]+(\.[0-9]{1,8})?$")
 SIGNED_MONEY_AMOUNT_RE = re.compile(r"^[+-]?[0-9]+(\.[0-9]{1,8})?$")
+NATIVE_AMOUNT_RE = re.compile(r"^[0-9]+(\.[0-9]{1,18})?$")
 
-WalletPhase = Literal["A", "B", "C"]
-TreasuryAsset = Literal["USDC", "SOL"]
+WalletPhase = Literal["A", "B", "C", "E"]
+TreasuryAsset = Literal["USDC", "SOL", "ETH"]
 
 
 class AeaBaseModel(BaseModel):
@@ -58,6 +59,24 @@ def parse_signed_amount(value: object) -> Decimal:
 def format_amount(value: Decimal) -> str:
     quantized = value.quantize(Decimal("0.000001"))
     return format(quantized, "f")
+
+
+def parse_unsigned_native_amount(value: object) -> Decimal:
+    if isinstance(value, Decimal):
+        return value
+    if isinstance(value, bool) or isinstance(value, float):
+        raise ValueError("native amounts must be decimal strings, not float/bool")
+    text = str(value) if isinstance(value, (str, int)) else ""
+    if not NATIVE_AMOUNT_RE.fullmatch(text):
+        raise ValueError("native amount must have at most 18 decimal places")
+    return Decimal(text)
+
+
+def format_asset_amount(value: Decimal, asset: str) -> str:
+    # The accepted ledger stores monetary mirrors to 8 decimal places. Exact
+    # EVM wei remains in chain_transaction_evidence and is never discarded.
+    places = Decimal("0.00000001") if asset == "ETH" else Decimal("0.000001")
+    return format(value.quantize(places), "f")
 
 
 class Money(AeaBaseModel):

@@ -1,0 +1,53 @@
+# Operator-installed M2b Base profile. Mainnet live spending remains separately gated.
+policy_version: "policy/m2b-base-v1"
+unit_of_account: USDC
+daily_spend_timezone: UTC
+starting_treasury: {USDC: "0.000000", SOL: "0.000000", ETH: "0.000000"}
+limits:
+  max_outbound_usdc: "0.010000"
+  max_daily_discretionary_usdc: "0.010000"
+  max_capital_at_risk_usdc: "0.010000"
+  max_job_compute_usdc: "0.100000"
+  max_open_jobs: 1
+  required_margin_bps: 200
+  min_payment_probability: 0.9
+  max_job_seconds: 120
+assets:
+  permitted_treasury: [USDC]
+  fee_asset: ETH
+  sol_spend_requires_job: true
+  sol_max_fee_per_tx: "0.000000"
+  sol_usdc_snapshot: "0.000000"
+  sol_usdc_unknown_ceiling: "0.000000"
+cost_rates:
+  compute_usd_per_1k_tokens_in: "0.000000"
+  compute_usd_per_1k_tokens_out: "0.000000"
+  compute_usd_per_wall_second: "0.000100"
+  compute_floor_usdc: "0.001000"
+prohibited: {borrow: true, leverage: true, lend: true, speculate: true,
+  arbitrary_swaps: true, unknown_contracts: true,
+  wallet_transfer_without_job: true, agent_policy_mutation: true}
+destinations: {allow_unclassified: false, file: destinations.evm.yaml}
+idempotency_ttl_seconds: 86400
+payment_settle_timeout_seconds: 3600
+wallet_phase: E
+evm:
+  rail: evm
+  network: base-mainnet
+  chain_id: 8453
+  operation: erc20_transfer
+  usdc_contract: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+  decimals: 6
+  max_gas_limit: 100000
+  max_fee_per_gas_wei: 2000000000
+  max_priority_fee_per_gas_wei: 100000000
+  max_total_fee_wei: 200000000000000
+  confirmations: 12
+  contract_calls_enabled: false
+  # Replace this operator snapshot before use; it is never invented by the model.
+  native_fee_usdc_snapshot: "2500.000000"
+  native_fee_rate_source: "operator-configured-price-snapshot"
+  native_fee_rate_observed_at: "2026-08-22T00:00:00Z"
+emergency: {freeze_independent_of_agent: true,
+  fail_closed_on_missing_freeze_file: true,
+  fail_closed_on_unreadable_freeze_dir: true}

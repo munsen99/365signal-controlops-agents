@@ -423,8 +423,30 @@ def create_app_from_env() -> WalletService | SolanaReadService:
             debit_token=debit, credit_token=credit,
             model_token=_read_token("AEA_MODEL_TOKEN", "AEA_MODEL_TOKEN_FILE"),
             control_token=_read_token("AEA_CONTROL_TOKEN", "AEA_CONTROL_TOKEN_FILE"))
+    if phase == "E":
+        from aea.wallet.evm import EvmConfig, EvmWallet
+        config = EvmConfig.model_validate({
+            "network": os.environ.get("AEA_EVM_NETWORK"),
+            "chain_id": os.environ.get("AEA_EVM_CHAIN_ID"),
+            "rpc_url": _read_token("AEA_EVM_RPC_URL", "AEA_EVM_RPC_URL_FILE"),
+            "public_wallet": os.environ.get("AEA_EVM_PUBLIC_WALLET"),
+            "token_contract": os.environ.get("AEA_EVM_USDC_CONTRACT"),
+            "token_decimals": os.environ.get("AEA_EVM_TOKEN_DECIMALS", "6"),
+            "confirmations": os.environ.get("AEA_EVM_CONFIRMATIONS", "12"),
+            "confirmation_timeout_seconds": os.environ.get("AEA_EVM_CONFIRMATION_TIMEOUT", "120"),
+            "rpc_timeout_seconds": os.environ.get("AEA_EVM_RPC_TIMEOUT", "20"),
+            "max_gas_limit": os.environ.get("AEA_EVM_MAX_GAS_LIMIT", "100000"),
+            "max_fee_per_gas_wei": os.environ.get("AEA_EVM_MAX_FEE_PER_GAS_WEI", "2000000000"),
+            "max_priority_fee_per_gas_wei": os.environ.get("AEA_EVM_MAX_PRIORITY_FEE_PER_GAS_WEI", "100000000"),
+            "max_total_fee_wei": os.environ.get("AEA_EVM_MAX_TOTAL_FEE_WEI", "200000000000000"),
+            "live_spend": False,
+        })
+        return SolanaReadService(wallet=EvmWallet(), config=config, read_token=read,
+            debit_token=debit, credit_token=credit,
+            model_token=_read_token("AEA_MODEL_TOKEN", "AEA_MODEL_TOKEN_FILE"),
+            control_token=_read_token("AEA_CONTROL_TOKEN", "AEA_CONTROL_TOKEN_FILE"))
     if phase != "A":
-        raise ValueError("wallet phase must be A, B, or C")
+        raise ValueError("wallet phase must be A, B, C, or E")
     return create_app(
         debit_token=debit,
         credit_token=credit,

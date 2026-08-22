@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# Operator/test infrastructure: execute one genuine Py-EVM test-token transfer.
+set -o errexit
+set -o nounset
+set -o pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+RUN_ID="m2b-local-$(date -u +%Y%m%dT%H%M%SZ)"
+EVIDENCE="${ROOT}/tests/e2e/evidence/m2b/${RUN_ID}"
+AEA_EVM_EVIDENCE_DIR="${EVIDENCE}" \
+  "${ROOT}/.venv/bin/python" -m pytest \
+  "${ROOT}/tests/integration/test_evm_local_chain.py" -q
+printf 'M2b E2 evidence: %s\n' "${EVIDENCE}/result.json"

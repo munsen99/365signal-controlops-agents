@@ -9,7 +9,7 @@ from uuid import UUID
 
 from pydantic import Field, field_serializer, field_validator
 
-from aea.types import AeaBaseModel, TreasuryAsset, format_amount, parse_unsigned_amount
+from aea.types import AeaBaseModel, TreasuryAsset, format_amount, parse_unsigned_amount, parse_unsigned_native_amount
 
 IdempotencyKey = str
 JobStatus = Literal[
@@ -118,7 +118,7 @@ class CostCreate(AeaBaseModel):
     @field_validator("amount", mode="before")
     @classmethod
     def _money(cls, value: object) -> Decimal:
-        return parse_unsigned_amount(value)
+        return parse_unsigned_native_amount(value)
 
     @field_validator("idempotency_key")
     @classmethod
@@ -127,6 +127,31 @@ class CostCreate(AeaBaseModel):
 
     @field_serializer("amount")
     def _dump_money(self, value: Decimal) -> str:
+        return format_amount(value)
+
+
+class ChainEvidenceCreate(AeaBaseModel):
+    payment_request_id: UUID
+    rail: Literal["evm"]
+    network: str = Field(min_length=1)
+    chain_id: int = Field(gt=0)
+    transaction_hash: str = Field(pattern=r"^0x[0-9a-fA-F]{64}$")
+    block_number: int = Field(ge=0)
+    token_contract: str = Field(min_length=1)
+    gas_used: int = Field(ge=0)
+    effective_gas_price_wei: int = Field(ge=0)
+    fee_wei: int = Field(ge=0)
+    fee_usdc_snapshot: Decimal = Field(gt=0)
+    fee_rate_source: str = Field(min_length=1)
+    fee_rate_observed_at: datetime
+
+    @field_validator("fee_usdc_snapshot", mode="before")
+    @classmethod
+    def _fee_rate(cls, value: object) -> Decimal:
+        return parse_unsigned_amount(value)
+
+    @field_serializer("fee_usdc_snapshot")
+    def _dump_rate(self, value: Decimal) -> str:
         return format_amount(value)
 
 

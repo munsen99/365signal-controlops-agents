@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Apply economic schema 013–015 to an existing controlops Postgres volume,
+# Apply economic schema 013–016 to an existing controlops Postgres volume,
 # then run validation. Fresh volumes also load these files from
 # platform/postgres/init/ on first container start.
 #
@@ -46,6 +46,8 @@ printf 'Applying 014-economic-roles-and-grants.sql\n'
 psql_admin -f "${INIT}/014-economic-roles-and-grants.sql"
 printf 'Applying 015-economic-seed.sql\n'
 psql_admin -f "${INIT}/015-economic-seed.sql"
+printf 'Applying 016-economic-multirail.sql\n'
+psql_admin -f "${INIT}/016-economic-multirail.sql"
 
 AEA_ROOT="${ROOT}/autonomous_economic_agent"
 PY="${AEA_ROOT}/.venv/bin/python"

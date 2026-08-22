@@ -25,7 +25,7 @@ import hmac
 import re
 from datetime import datetime
 from decimal import Decimal
-from typing import Protocol
+from typing import Literal, Protocol
 from uuid import UUID
 
 from pydantic import Field, field_serializer, field_validator
@@ -73,6 +73,24 @@ class PhaseBApprovalContext(AeaBaseModel):
     decimals: int = Field(ge=0, le=18)
 
 
+class EvmApprovalContext(AeaBaseModel):
+    """Exact ERC-20 transfer intent MAC-bound by Policy."""
+
+    rail: Literal["evm"] = "evm"
+    network: str
+    chain_id: int = Field(gt=0)
+    operation: Literal["erc20_transfer"] = "erc20_transfer"
+    payer: str
+    token_contract: str
+    destination: str
+    amount_base_units: int = Field(gt=0)
+    decimals: int = Field(ge=0, le=18)
+    max_gas_limit: int = Field(gt=0)
+    max_fee_per_gas_wei: int = Field(gt=0)
+    max_priority_fee_per_gas_wei: int = Field(ge=0)
+    max_total_fee_wei: int = Field(gt=0)
+
+
 class ApprovedRequest(AeaBaseModel):
     """Canonical approved payment request (M0 §9) plus policy_hash binding."""
 
@@ -89,6 +107,7 @@ class ApprovedRequest(AeaBaseModel):
     correlation_id: UUID
     phase_b_context: PhaseBApprovalContext | None = None
     phase_c_context: PhaseBApprovalContext | None = None
+    evm_context: EvmApprovalContext | None = None
 
     @field_validator("amount", "approved_amount", mode="before")
     @classmethod
@@ -150,6 +169,14 @@ class SignResult(AeaBaseModel):
     canonical_hash: str | None = None
     replay: bool = False
     fee_lamports: int | None = Field(default=None, ge=0)
+    fee_wei: int | None = Field(default=None, ge=0)
+    gas_used: int | None = Field(default=None, ge=0)
+    effective_gas_price_wei: int | None = Field(default=None, ge=0)
+    rail: Literal["evm"] | None = None
+    network: str | None = None
+    chain_id: int | None = Field(default=None, gt=0)
+    token_contract: str | None = None
+    block_number: int | None = Field(default=None, ge=0)
 
 
 class WalletDebitError(Exception):
@@ -200,6 +227,8 @@ def approved_canonical_dict(req: ApprovedRequest) -> dict[str, object]:
         out["phase_b_context"] = req.phase_b_context.model_dump(mode="json")
     if req.phase_c_context is not None:
         out["phase_c_context"] = req.phase_c_context.model_dump(mode="json")
+    if req.evm_context is not None:
+        out["evm_context"] = req.evm_context.model_dump(mode="json")
     return out
 
 

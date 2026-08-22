@@ -1,0 +1,31 @@
+{
+  "run_id": "m2b-public-readonly-20260822T122000Z",
+  "read_only": true,
+  "mainnet_transaction_constructed": false,
+  "mainnet_transaction_signed": false,
+  "mainnet_transaction_broadcast": false,
+  "base_sepolia": {
+    "chain_id": 84532,
+    "rpc_endpoint": "https://sepolia.base.org",
+    "rpc_chain_identity_verified": true,
+    "circle_test_usdc_contract": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+    "contract_code_present": true,
+    "decimals": 6,
+    "funded_dedicated_test_wallet_available": false,
+    "transaction_executed": false,
+    "result": "READ_ONLY_PASS_TRANSACTION_BLOCKED_NO_OPERATOR_TEST_WALLET_OR_FUNDS"
+  },
+  "base_mainnet": {
+    "chain_id": 8453,
+    "rpc_endpoint": "https://mainnet.base.org",
+    "rpc_chain_identity_verified": true,
+    "canonical_native_usdc_contract": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    "contract_code_present": true,
+    "decimals": 6,
+    "block_number_at_probe": 50305860,
+    "dedicated_aea_evm_wallet_configured": false,
+    "live_spend_gate": "disabled",
+    "result": "READ_ONLY_NETWORK_AND_ASSET_PASS_WALLET_READINESS_BLOCKED_OPERATOR_PROVISIONING_REQUIRED"
+  },
+  "secrets_recorded": false
+}

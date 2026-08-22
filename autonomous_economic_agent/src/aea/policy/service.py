@@ -139,6 +139,7 @@ class PolicyService:
         db_frozen_reader: Callable[[], Any] | None = None,
         signer_client: PolicySignerClient | None = None,
         phase_b_context: dict[str, str] | None = None,
+        evm_context: dict[str, Any] | None = None,
         debit_token: str | None = None,
     ) -> None:
         if not control_token:
@@ -153,6 +154,7 @@ class PolicyService:
         self._db_frozen_reader = db_frozen_reader
         self._signer_client = signer_client
         self._phase_b_context = phase_b_context
+        self._evm_context = evm_context
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
@@ -336,6 +338,18 @@ class PolicyService:
                 return
             context_key = "phase_c_context" if self._loaded.document.wallet_phase == "C" else "phase_b_context"
             approved_body[context_key] = {**self._phase_b_context, "amount_base_units": int(base)}
+        elif self._loaded.document.wallet_phase == "E":
+            if self._evm_context is None:
+                await _send_json(send, status=200, payload={"ok": False,
+                    "code": HttpCode.SIGNER_UNAVAILABLE, "decision": "approved",
+                    "request_id": str(req.request_id), "reason_code": "EVM_CONFIG_MISSING"})
+                return
+            from decimal import Decimal
+            base = req.amount * (Decimal(10) ** int(self._evm_context["decimals"]))
+            if base != base.to_integral_value():
+                await _send_json(send, status=400, payload={"ok": False, "code": HttpCode.VALIDATION_ERROR})
+                return
+            approved_body["evm_context"] = {**self._evm_context, "amount_base_units": int(base)}
         approved = ApprovedRequest.model_validate(approved_body)
         signed = await self._signer_client.sign(approved)
         body = {
@@ -351,6 +365,14 @@ class PolicyService:
             "approved_amount": format_amount(output.approved_amount),
             "replay": signed.replay,
             "fee_lamports": signed.fee_lamports,
+            "fee_wei": signed.fee_wei,
+            "gas_used": signed.gas_used,
+            "effective_gas_price_wei": signed.effective_gas_price_wei,
+            "rail": signed.rail,
+            "network": signed.network,
+            "chain_id": signed.chain_id,
+            "token_contract": signed.token_contract,
+            "block_number": signed.block_number,
             "correlation_id": str(output.correlation_id),
         }
         await _send_json(send, status=200, payload=body)
@@ -385,6 +407,7 @@ def create_app(
     db_frozen_reader: Callable[[], Any] | None = None,
     signer_client: PolicySignerClient | None = None,
     phase_b_context: dict[str, str] | None = None,
+    evm_context: dict[str, Any] | None = None,
 ) -> PolicyService:
     return PolicyService(
         control_token=control_token,
@@ -395,6 +418,7 @@ def create_app(
         db_frozen_reader=db_frozen_reader,
         signer_client=signer_client,
         phase_b_context=phase_b_context,
+        evm_context=evm_context,
     )
 
 
@@ -416,6 +440,7 @@ def create_app_from_env() -> PolicyService:
         )
     loaded = load_policy()
     phase_b_context = None
+    evm_context = None
     if loaded.document.wallet_phase in {"B", "C"}:
         from solders.pubkey import Pubkey
         from spl.token.instructions import get_associated_token_address
@@ -435,6 +460,32 @@ def create_app_from_env() -> PolicyService:
             "destination_token_account": str(get_associated_token_address(owner, mint)),
             "decimals": os.environ.get("AEA_SOLANA_TOKEN_DECIMALS", "6"),
         }
+    elif loaded.document.wallet_phase == "E":
+        if loaded.document.evm is None:
+            raise ValueError("Phase E policy is missing EVM constraints")
+        required = {name: os.environ.get(name) for name in (
+            "AEA_EVM_NETWORK", "AEA_EVM_CHAIN_ID", "AEA_EVM_PUBLIC_WALLET",
+            "AEA_EVM_USDC_CONTRACT", "AEA_EVM_DESTINATION_ADDRESS")}
+        if any(not value for value in required.values()):
+            raise ValueError("EVM public transaction context is incomplete")
+        evm_context = {
+            "rail": "evm", "network": required["AEA_EVM_NETWORK"],
+            "chain_id": int(str(required["AEA_EVM_CHAIN_ID"])), "operation": "erc20_transfer",
+            "payer": required["AEA_EVM_PUBLIC_WALLET"], "token_contract": required["AEA_EVM_USDC_CONTRACT"],
+            "destination": required["AEA_EVM_DESTINATION_ADDRESS"], "decimals": 6,
+            "max_gas_limit": int(os.environ.get("AEA_EVM_MAX_GAS_LIMIT", "100000")),
+            "max_fee_per_gas_wei": int(os.environ.get("AEA_EVM_MAX_FEE_PER_GAS_WEI", "2000000000")),
+            "max_priority_fee_per_gas_wei": int(os.environ.get("AEA_EVM_MAX_PRIORITY_FEE_PER_GAS_WEI", "100000000")),
+            "max_total_fee_wei": int(os.environ.get("AEA_EVM_MAX_TOTAL_FEE_WEI", "200000000000000")),
+        }
+        pinned = loaded.document.evm
+        if (evm_context["network"] != pinned.network or evm_context["chain_id"] != pinned.chain_id
+                or str(evm_context["token_contract"]).lower() != pinned.usdc_contract.lower()
+                or evm_context["max_gas_limit"] != pinned.max_gas_limit
+                or evm_context["max_fee_per_gas_wei"] != pinned.max_fee_per_gas_wei
+                or evm_context["max_priority_fee_per_gas_wei"] != pinned.max_priority_fee_per_gas_wei
+                or evm_context["max_total_fee_wei"] != pinned.max_total_fee_wei):
+            raise ValueError("EVM runtime context does not match policy")
     return create_app(
         control_token=control,
         loaded=loaded,
@@ -442,6 +493,7 @@ def create_app_from_env() -> PolicyService:
         freeze_path=freeze_path,
         signer_client=signer_client,
         phase_b_context=phase_b_context,
+        evm_context=evm_context,
     )
 
 

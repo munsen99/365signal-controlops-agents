@@ -1,0 +1,69 @@
+# M2b Base overlay. The EVM private key and signed-byte recovery state are
+# mounted only into the isolated signer. Live spending defaults disabled.
+services:
+  economic-control:
+    environment:
+      AEA_POLICY_FILE: /secrets/policy.evm.yaml
+      AEA_DESTINATIONS_FILE: /secrets/destinations.evm.yaml
+    volumes:
+      - ${AEA_SECRETS:?protected secrets directory required}/policy.evm.yaml:/secrets/policy.evm.yaml:ro
+      - ${AEA_SECRETS:?protected secrets directory required}/destinations.evm.yaml:/secrets/destinations.evm.yaml:ro
+
+  economic-policy:
+    environment:
+      AEA_POLICY_FILE: /secrets/policy.evm.yaml
+      AEA_DESTINATIONS_FILE: /secrets/destinations.evm.yaml
+      AEA_EVM_NETWORK: ${AEA_EVM_NETWORK:-base-mainnet}
+      AEA_EVM_CHAIN_ID: ${AEA_EVM_CHAIN_ID:-8453}
+      AEA_EVM_PUBLIC_WALLET: ${AEA_EVM_PUBLIC_WALLET:?required}
+      AEA_EVM_USDC_CONTRACT: ${AEA_EVM_USDC_CONTRACT:?required}
+      AEA_EVM_DESTINATION_ADDRESS: ${AEA_EVM_DESTINATION_ADDRESS:?required}
+    volumes:
+      - ${AEA_SECRETS:?protected secrets directory required}/policy.evm.yaml:/secrets/policy.evm.yaml:ro
+      - ${AEA_SECRETS:?protected secrets directory required}/destinations.evm.yaml:/secrets/destinations.evm.yaml:ro
+
+  economic-signer:
+    build:
+      context: ..
+      dockerfile: ops/Dockerfile.economic
+      args: {AEA_INSTALL_EVM: "1"}
+    environment:
+      AEA_WALLET_PHASE: E
+      AEA_LIVE_WALLET: ${AEA_LIVE_WALLET:-0}
+      AEA_LIVE_SPEND_FILE: /live/CONFIRM_LIVE_USDC_TRANSFER
+      AEA_POLICY_HASH: ${AEA_POLICY_HASH:?EVM policy hash required}
+      AEA_EVM_NETWORK: ${AEA_EVM_NETWORK:-base-mainnet}
+      AEA_EVM_CHAIN_ID: ${AEA_EVM_CHAIN_ID:-8453}
+      AEA_EVM_RPC_URL_FILE: /secrets/evm_rpc_url
+      AEA_EVM_PUBLIC_WALLET: ${AEA_EVM_PUBLIC_WALLET:?required}
+      AEA_EVM_USDC_CONTRACT: ${AEA_EVM_USDC_CONTRACT:?required}
+      AEA_EVM_SIGNER_KEY_FILE: /secrets/evm-signer.key
+      AEA_EVM_SIGNER_STATE_DIR: /signer-state
+      AEA_EVM_DESTINATION_ID: ${AEA_EVM_DESTINATION_ID:?required}
+      AEA_EVM_DESTINATION_ADDRESS: ${AEA_EVM_DESTINATION_ADDRESS:?required}
+    volumes:
+      - ${AEA_SECRETS:?protected secrets directory required}/evm-signer.key:/secrets/evm-signer.key:ro
+      - ${AEA_SECRETS:?protected secrets directory required}/evm_rpc_url:/secrets/evm_rpc_url:ro
+      - ${AEA_SECRETS:?protected secrets directory required}/live:/live:ro
+      - ${AEA_SECRETS:?protected secrets directory required}/evm-signer-state:/signer-state
+
+  economic-wallet:
+    build:
+      context: ..
+      dockerfile: ops/Dockerfile.economic
+      args: {AEA_INSTALL_EVM: "1"}
+    environment:
+      AEA_WALLET_PHASE: E
+      AEA_EVM_NETWORK: ${AEA_EVM_NETWORK:-base-mainnet}
+      AEA_EVM_CHAIN_ID: ${AEA_EVM_CHAIN_ID:-8453}
+      AEA_EVM_RPC_URL_FILE: /secrets/evm_rpc_url
+      AEA_EVM_PUBLIC_WALLET: ${AEA_EVM_PUBLIC_WALLET:?required}
+      AEA_EVM_USDC_CONTRACT: ${AEA_EVM_USDC_CONTRACT:?required}
+    volumes:
+      - ${AEA_SECRETS:?protected secrets directory required}/evm_rpc_url:/secrets/evm_rpc_url:ro
+
+  economic-supervisor:
+    environment:
+      AEA_POLICY_FILE: /secrets/policy.evm.yaml
+    volumes:
+      - ${AEA_SECRETS:?protected secrets directory required}/policy.evm.yaml:/secrets/policy.evm.yaml:ro
