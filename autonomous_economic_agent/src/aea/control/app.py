@@ -548,7 +548,10 @@ def create_app_from_env() -> ControlService:
     from aea.ledger.service import LedgerService
     from aea.payment.service import policy_execute_via_http
 
-    ledger = LedgerService.from_env()
+    loaded_policy = load_policy()
+    if loaded_policy.document.wallet_phase == "C" and os.environ.get("AEA_LIVE_WALLET") != "1":
+        raise ValueError("Phase C Control requires explicit AEA_LIVE_WALLET=1 operator intent")
+    ledger = LedgerService.from_env(policy=loaded_policy)
     payment = None
     policy_url = os.environ.get("AEA_POLICY_URL")
     wallet_url = os.environ.get("AEA_WALLET_URL", "http://127.0.0.1:18704")
@@ -605,7 +608,7 @@ def create_app_from_env() -> ControlService:
     if control and policy_url:
         payment = PaymentOrchestrator(
             ledger=ledger,
-            policy=load_policy(),
+            policy=loaded_policy,
             policy_execute=policy_execute_via_http(policy_url, control),
             wallet_balances=_wallet_balances,
             control_token=control,

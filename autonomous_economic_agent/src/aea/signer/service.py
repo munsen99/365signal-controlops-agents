@@ -536,12 +536,12 @@ def create_app_from_env() -> SignerService:
             freeze_path=Path(freeze_raw), expected_policy_version=policy_version,
             expected_policy_hash=policy_hash, debit=debit, hmac_key=hmac_key,
         )
-    elif phase == "B":
+    elif phase in {"B", "C"}:
         import asyncio
         from aea.signer.solana import SolanaSigner, load_protected_keypair
         from aea.wallet.solana import SolanaConfig, SolanaWallet
         required = {
-            "rpc_url": os.environ.get("AEA_SOLANA_RPC_URL"),
+            "rpc_url": _read_token("AEA_SOLANA_RPC_URL", "AEA_SOLANA_RPC_URL_FILE"),
             "public_wallet": os.environ.get("AEA_SOLANA_PUBLIC_WALLET"),
             "token_mint": os.environ.get("AEA_SOLANA_TOKEN_MINT"),
             "source_token_account": os.environ.get("AEA_SOLANA_SOURCE_TOKEN_ACCOUNT"),
@@ -550,9 +550,9 @@ def create_app_from_env() -> SignerService:
             "destination_owner": os.environ.get("AEA_SOLANA_DESTINATION_OWNER"),
         }
         if any(not value for value in required.values()):
-            raise ValueError("Phase B Solana configuration is incomplete")
+            raise ValueError("Solana signer configuration is incomplete")
         config = SolanaConfig.model_validate({
-            "wallet_phase": "B", "network": os.environ.get("AEA_SOLANA_NETWORK"),
+            "wallet_phase": phase, "network": os.environ.get("AEA_SOLANA_NETWORK"),
             "rpc_url": required["rpc_url"], "public_wallet": required["public_wallet"],
             "token_mint": required["token_mint"],
             "token_decimals": os.environ.get("AEA_SOLANA_TOKEN_DECIMALS", "6"),
@@ -569,9 +569,11 @@ def create_app_from_env() -> SignerService:
             expected_policy_hash=policy_hash, hmac_key=hmac_key, config=config,
             keypair=keypair, rpc=rpc,
             approved_destinations={str(required["destination_id"]): str(required["destination_owner"])},
+            live_spend_path=os.environ.get("AEA_LIVE_SPEND_FILE") if phase == "C" else None,
+            live_operator_intent=os.environ.get("AEA_LIVE_WALLET") if phase == "C" else None,
         )
     else:
-        raise ValueError("wallet phase must be A or B; mainnet Phase C is unavailable")
+        raise ValueError("wallet phase must be A, B, or C")
     return create_app(
         signer=signer,
         signer_token=signer_token,

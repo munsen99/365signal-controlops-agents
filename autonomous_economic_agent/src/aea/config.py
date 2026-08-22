@@ -232,8 +232,6 @@ def load_policy(
     destinations = DestinationsDocument.model_validate(dest_raw)
     if document.destinations.allow_unclassified:
         raise ValueError("allow_unclassified must be false")
-    if document.wallet_phase == "C":
-        raise ValueError("wallet_phase A/B only; wallet_phase C is reserved for PR14")
     policy_hash = canonical_yaml_hash(raw)
     return LoadedPolicy(
         document=document,

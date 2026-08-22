@@ -1,0 +1,9 @@
+# Replace only in protected operator configuration before live enablement.
+classifications:
+  - id: "mainnet:approved:smoke-recipient"
+    class: marketplace_escrow
+    allowed: true
+    max_usdc: "0.010000"
+  - id: unknown
+    class: unknown
+    allowed: false

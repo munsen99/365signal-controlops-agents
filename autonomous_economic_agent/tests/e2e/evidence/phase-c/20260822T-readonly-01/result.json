@@ -1,0 +1,24 @@
+{
+  "approved_destination_ata": "5DSBGaei3dAgb1E3vJ6ux9MF3PQWwQv5XfVyPpZX6DVB",
+  "approved_destination_owner": "CWqTwLoGXCYU4gn7KxEcWTVFJuhzTMEmMrBKTM512Yag",
+  "balances": {
+    "SOL": "0",
+    "USDC": "0"
+  },
+  "canonical_usdc_mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+  "confirmation_requirement": "finalized",
+  "genesis_hash": "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d",
+  "live_spend_enabled": false,
+  "live_spend_reason": "operator_intent_missing",
+  "network": "mainnet-beta",
+  "policy_hash": "af6e0f0f20f70c5d61e55a0cd000ed258c86c6fe01e24ce8adfcd45629ee2a96",
+  "policy_version": "policy/v0.1.0",
+  "private_key_available_to_probe": false,
+  "public_wallet": "CWqTwLoGXCYU4gn7KxEcWTVFJuhzTMEmMrBKTM512Yag",
+  "result": "PASS",
+  "rpc_endpoint": "https://api.mainnet-beta.solana.com",
+  "rpc_version": "RpcVersionInfo(4.2.0)",
+  "source_ata": "5DSBGaei3dAgb1E3vJ6ux9MF3PQWwQv5XfVyPpZX6DVB",
+  "stage": "implementation/read-only-readiness",
+  "timestamp": "2026-08-22T09:35:47.717445+00:00"
+}

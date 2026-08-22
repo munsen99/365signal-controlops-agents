@@ -1,0 +1,13 @@
+{
+  "gate_a_regression": "PASS",
+  "gate_b_accepted_evidence_regression": "PASS",
+  "pr13_phase_b_accepted_evidence_regression": "PASS",
+  "phase_c_focused_tests": "26 passed",
+  "full_suite": "345 passed",
+  "git_diff_check": "PASS",
+  "configured_mainnet_rpc_usable": true,
+  "alternative_mainnet_rpc_tested": false,
+  "alternative_not_needed_reason": "configured endpoint passed TLS, getHealth, getVersion, genesis and finalized getLatestBlockhash",
+  "live_transaction_executed": false,
+  "live_settlement_status": "BLOCKED_OPERATOR_AUTHORIZATION_AND_FUNDING_REQUIRED"
+}

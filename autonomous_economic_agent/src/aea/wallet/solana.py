@@ -1,7 +1,7 @@
-"""Keyless Phase-B Solana RPC adapter and narrow SPL transfer DTOs.
+"""Keyless Phase-B/C Solana RPC adapter and narrow SPL transfer DTOs.
 
-This module is imported only when ``wallet_phase=B``.  It never loads or
-accepts a private key.  Cryptographic signing lives in :mod:`aea.signer.solana`.
+Cryptographic authority and key loading live only in :mod:`aea.signer.solana`;
+this adapter exposes no generic signing operation.
 """
 
 from __future__ import annotations
@@ -18,10 +18,13 @@ from aea.hashing import canonical_json_hash
 from aea.types import AeaBaseModel, format_amount, parse_unsigned_amount
 
 SOLANA_SIGNATURE_RE = re.compile(r"^[1-9A-HJ-NP-Za-km-z]{64,88}$")
-SAFE_NETWORKS = frozenset({"devnet", "testnet", "localnet"})
+SAFE_NETWORKS = frozenset({"devnet", "testnet", "localnet", "mainnet-beta"})
+MAINNET_GENESIS_HASH = "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d"
+CANONICAL_MAINNET_USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
 GENESIS_HASHES = {
     "devnet": "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG",
     "testnet": "4uhcVJyU9pJkvQyS88uRDiswHXSCkY3zQawwpjk2NsNY",
+    "mainnet-beta": MAINNET_GENESIS_HASH,
 }
 Commitment = Literal["confirmed", "finalized"]
 TxState = Literal[
@@ -37,7 +40,7 @@ class SolanaBackendError(Exception):
 
 
 class SolanaConfig(AeaBaseModel):
-    wallet_phase: Literal["B"]
+    wallet_phase: Literal["B", "C"]
     network: str
     rpc_url: str = Field(min_length=1)
     public_wallet: str = Field(min_length=32)
@@ -52,8 +55,10 @@ class SolanaConfig(AeaBaseModel):
     @classmethod
     def _safe_network(cls, value: str) -> str:
         normalized = value.strip().lower()
-        if normalized in {"mainnet", "mainnet-beta"} or normalized not in SAFE_NETWORKS:
-            raise ValueError("Phase B requires devnet, testnet, or localnet")
+        if normalized == "mainnet":
+            raise ValueError("use exact Solana cluster name mainnet-beta")
+        if normalized not in SAFE_NETWORKS:
+            raise ValueError("unsupported Solana network")
         return normalized
 
     @field_validator("rpc_url")
@@ -70,8 +75,16 @@ class SolanaConfig(AeaBaseModel):
     @model_validator(mode="after")
     def _endpoint_network(self) -> "SolanaConfig":
         lower = self.rpc_url.lower()
-        if "mainnet" in lower:
-            raise ValueError("mainnet RPC endpoint is forbidden in Phase B")
+        if self.wallet_phase == "B" and self.network == "mainnet-beta":
+            raise ValueError("mainnet is forbidden in Phase B")
+        if self.wallet_phase == "C" and self.network != "mainnet-beta":
+            raise ValueError("Phase C requires mainnet-beta")
+        if self.wallet_phase == "C" and self.token_mint != CANONICAL_MAINNET_USDC_MINT:
+            raise ValueError("Phase C requires canonical Solana USDC mint")
+        if self.wallet_phase == "C" and self.token_decimals != 6:
+            raise ValueError("Phase C USDC requires six decimals")
+        if self.wallet_phase == "C" and self.commitment != "finalized":
+            raise ValueError("Phase C settlement requires finalized commitment")
         if self.network == "localnet":
             from urllib.parse import urlsplit
             if urlsplit(self.rpc_url).hostname not in {"127.0.0.1", "localhost", "::1"}:
@@ -132,6 +145,11 @@ class SolanaTxEvidence(AeaBaseModel):
     fee_lamports: int | None = Field(default=None, ge=0)
     error: str | None = None
     observed_at: datetime
+    transfer_verified: bool = False
+    source_token_account: str | None = None
+    destination_token_account: str | None = None
+    mint: str | None = None
+    amount_base_units: int | None = Field(default=None, ge=0)
 
     @field_validator("signature")
     @classmethod
@@ -149,12 +167,15 @@ class SignedTransfer(AeaBaseModel):
 
 
 class SolanaRpcPort(Protocol):
-    async def validate(self, config: SolanaConfig) -> None: ...
+    async def validate(self, config: SolanaConfig, *, for_spend: bool = False) -> None: ...
     async def balances(self, config: SolanaConfig) -> dict[str, Decimal]: ...
+    async def validate_destination(self, config: SolanaConfig, destination_owner: str) -> str: ...
     async def prepare_and_sign(self, config: SolanaConfig, intent: SolanaTransferIntent, keypair: Any) -> SignedTransfer: ...
     async def submit(self, config: SolanaConfig, signed: SignedTransfer) -> str: ...
     async def lookup(self, config: SolanaConfig, signature: str) -> SolanaTxEvidence: ...
     async def wait_for_settlement(self, config: SolanaConfig, signature: str) -> SolanaTxEvidence: ...
+    async def verify_transfer(self, config: SolanaConfig, signature: str,
+                              intent: SolanaTransferIntent) -> SolanaTxEvidence: ...
 
 
 class SolanaWallet:
@@ -167,9 +188,11 @@ class SolanaWallet:
         from solana.rpc.async_api import AsyncClient
         return AsyncClient(config.rpc_url, timeout=float(config.rpc_timeout_seconds), commitment=config.commitment)
 
-    async def validate(self, config: SolanaConfig) -> None:
+    async def validate(self, config: SolanaConfig, *, for_spend: bool = False) -> None:
         from solders.pubkey import Pubkey
         from solana.rpc.types import TokenAccountOpts
+        from spl.token.constants import TOKEN_PROGRAM_ID
+        from spl.token.instructions import get_associated_token_address
         try:
             owner = Pubkey.from_string(config.public_wallet)
             mint_key = Pubkey.from_string(config.token_mint)
@@ -179,6 +202,8 @@ class SolanaWallet:
                 version = await client.get_version()
                 genesis = await client.get_genesis_hash()
                 supply = await client.get_token_supply(mint_key, commitment=config.commitment)
+                mint_info = await client.get_account_info(mint_key, commitment=config.commitment)
+                source_info = await client.get_account_info(source, commitment=config.commitment)
                 accounts = await client.get_token_accounts_by_owner(
                     owner, TokenAccountOpts(mint=mint_key), commitment=config.commitment
                 )
@@ -191,8 +216,18 @@ class SolanaWallet:
                 raise SolanaBackendError("RPC_NETWORK_MISMATCH")
             if int(supply.value.decimals) != config.token_decimals:
                 raise SolanaBackendError("MINT_DECIMALS_MISMATCH")
-            if str(source) not in {str(account.pubkey) for account in accounts.value}:
+            if mint_info.value is None or mint_info.value.owner != TOKEN_PROGRAM_ID:
+                raise SolanaBackendError("MINT_PROGRAM_MISMATCH")
+            expected_source = get_associated_token_address(owner, mint_key)
+            if config.wallet_phase == "C" and source != expected_source:
                 raise SolanaBackendError("SOURCE_TOKEN_ACCOUNT_MISMATCH")
+            source_exists = source_info.value is not None
+            if source_exists and source_info.value.owner != TOKEN_PROGRAM_ID:
+                raise SolanaBackendError("SOURCE_TOKEN_PROGRAM_MISMATCH")
+            if source_exists and str(source) not in {str(account.pubkey) for account in accounts.value}:
+                raise SolanaBackendError("SOURCE_TOKEN_ACCOUNT_MISMATCH")
+            if for_spend and not source_exists:
+                raise SolanaBackendError("SOURCE_TOKEN_ACCOUNT_MISSING")
         except SolanaBackendError:
             raise
         except Exception as exc:
@@ -204,9 +239,15 @@ class SolanaWallet:
             client = await self._client(config)
             try:
                 sol = await client.get_balance(Pubkey.from_string(config.public_wallet), commitment=config.commitment)
-                token = await client.get_token_account_balance(Pubkey.from_string(config.source_token_account), commitment=config.commitment)
+                source = Pubkey.from_string(config.source_token_account)
+                info = await client.get_account_info(source, commitment=config.commitment)
+                token = None if info.value is None else await client.get_token_account_balance(source, commitment=config.commitment)
             finally:
                 await client.close()
+            if token is None:
+                if config.wallet_phase == "C":
+                    return {"SOL": Decimal(sol.value) / Decimal(1_000_000_000), "USDC": Decimal("0")}
+                raise SolanaBackendError("SOURCE_TOKEN_ACCOUNT_MISSING")
             raw = token.value
             if int(raw.decimals) != config.token_decimals:
                 raise SolanaBackendError("MINT_DECIMALS_MISMATCH")
@@ -214,6 +255,40 @@ class SolanaWallet:
                 "SOL": Decimal(sol.value) / Decimal(1_000_000_000),
                 "USDC": Decimal(raw.amount) / (Decimal(10) ** config.token_decimals),
             }
+        except SolanaBackendError:
+            raise
+        except Exception as exc:
+            raise SolanaBackendError("NETWORK_FAILURE", scrub_rpc_error(str(exc), config.rpc_url)) from exc
+
+    async def validate_destination(self, config: SolanaConfig, destination_owner: str) -> str:
+        from solders.pubkey import Pubkey
+        from solana.rpc.types import TokenAccountOpts
+        from spl.token.constants import TOKEN_PROGRAM_ID
+        from spl.token.instructions import get_associated_token_address
+        try:
+            owner = Pubkey.from_string(destination_owner)
+            mint = Pubkey.from_string(config.token_mint)
+            destination = get_associated_token_address(owner, mint)
+            client = await self._client(config)
+            try:
+                info = await client.get_account_info(destination, commitment=config.commitment)
+                accounts = await client.get_token_accounts_by_owner(
+                    owner, TokenAccountOpts(mint=mint), commitment=config.commitment
+                )
+                balance = None if info.value is None else await client.get_token_account_balance(
+                    destination, commitment=config.commitment
+                )
+            finally:
+                await client.close()
+            if info.value is None:
+                raise SolanaBackendError("DESTINATION_TOKEN_ACCOUNT_MISSING")
+            if info.value.owner != TOKEN_PROGRAM_ID:
+                raise SolanaBackendError("DESTINATION_TOKEN_PROGRAM_MISMATCH")
+            if str(destination) not in {str(account.pubkey) for account in accounts.value}:
+                raise SolanaBackendError("DESTINATION_ACCOUNT_MISMATCH")
+            if balance is None or int(balance.value.decimals) != config.token_decimals:
+                raise SolanaBackendError("MINT_DECIMALS_MISMATCH")
+            return str(destination)
         except SolanaBackendError:
             raise
         except Exception as exc:
@@ -316,6 +391,68 @@ class SolanaWallet:
                 return evidence
             await asyncio.sleep(1)
         return SolanaTxEvidence(signature=signature, state="timeout", network=config.network, observed_at=datetime.now(timezone.utc))
+
+    async def verify_transfer(self, config: SolanaConfig, signature: str,
+                              intent: SolanaTransferIntent) -> SolanaTxEvidence:
+        """Verify finalized jsonParsed chain evidence against the approved intent."""
+        import httpx
+
+        request = {"jsonrpc": "2.0", "id": 1, "method": "getTransaction", "params": [
+            signature, {"commitment": config.commitment, "encoding": "jsonParsed",
+                        "maxSupportedTransactionVersion": 0},
+        ]}
+        try:
+            async with httpx.AsyncClient(timeout=float(config.rpc_timeout_seconds)) as client:
+                response = await client.post(config.rpc_url, json=request)
+                response.raise_for_status()
+                body = response.json()
+            result = body.get("result")
+            if not isinstance(result, dict) or not isinstance(result.get("meta"), dict):
+                raise SolanaBackendError("CHAIN_EVIDENCE_MISSING")
+            meta = result["meta"]
+            if meta.get("err") is not None:
+                raise SolanaBackendError("CHAIN_TRANSACTION_FAILED")
+            message = result.get("transaction", {}).get("message", {})
+            keys = message.get("accountKeys", [])
+            key_values = [item.get("pubkey") if isinstance(item, dict) else item for item in keys]
+            if not key_values or key_values[0] != intent.payer:
+                raise SolanaBackendError("CHAIN_PAYER_MISMATCH")
+            matches: list[dict[str, Any]] = []
+            for instruction in message.get("instructions", []):
+                parsed = instruction.get("parsed") if isinstance(instruction, dict) else None
+                if (not isinstance(instruction, dict) or instruction.get("program") != "spl-token"
+                        or not isinstance(parsed, dict) or parsed.get("type") != "transferChecked"):
+                    continue
+                info = parsed.get("info")
+                if isinstance(info, dict):
+                    matches.append(info)
+            if len(matches) != 1:
+                raise SolanaBackendError("CHAIN_TRANSFER_MISMATCH")
+            info = matches[0]
+            token_amount = info.get("tokenAmount", {})
+            exact = (
+                info.get("source") == intent.source_token_account
+                and info.get("destination") == intent.destination_token_account
+                and info.get("mint") == intent.source_mint
+                and info.get("authority") == intent.payer
+                and str(token_amount.get("amount")) == str(intent.amount_base_units)
+                and int(token_amount.get("decimals", -1)) == intent.decimals
+            )
+            if not exact:
+                raise SolanaBackendError("CHAIN_TRANSFER_MISMATCH")
+            state: TxState = "finalized" if config.commitment == "finalized" else "confirmed"
+            return SolanaTxEvidence(
+                signature=signature, state=state, network=config.network,
+                slot=result.get("slot"), fee_lamports=int(meta.get("fee", 0)),
+                observed_at=datetime.now(timezone.utc), transfer_verified=True,
+                source_token_account=intent.source_token_account,
+                destination_token_account=intent.destination_token_account,
+                mint=intent.source_mint, amount_base_units=intent.amount_base_units,
+            )
+        except SolanaBackendError:
+            raise
+        except Exception as exc:
+            raise SolanaBackendError("NETWORK_FAILURE", scrub_rpc_error(str(exc), config.rpc_url)) from exc
 
 
 def scrub_rpc_error(message: str, rpc_url: str) -> str:

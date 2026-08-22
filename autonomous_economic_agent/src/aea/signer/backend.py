@@ -88,6 +88,7 @@ class ApprovedRequest(AeaBaseModel):
     approved_at: datetime
     correlation_id: UUID
     phase_b_context: PhaseBApprovalContext | None = None
+    phase_c_context: PhaseBApprovalContext | None = None
 
     @field_validator("amount", "approved_amount", mode="before")
     @classmethod
@@ -197,6 +198,8 @@ def approved_canonical_dict(req: ApprovedRequest) -> dict[str, object]:
     }
     if req.phase_b_context is not None:
         out["phase_b_context"] = req.phase_b_context.model_dump(mode="json")
+    if req.phase_c_context is not None:
+        out["phase_c_context"] = req.phase_c_context.model_dump(mode="json")
     return out
 
 

@@ -323,7 +323,7 @@ class PolicyService:
                 "approved_at": req.approved_at.isoformat(),
                 "correlation_id": str(output.correlation_id),
             }
-        if self._loaded.document.wallet_phase == "B":
+        if self._loaded.document.wallet_phase in {"B", "C"}:
             if self._phase_b_context is None:
                 await _send_json(send, status=200, payload={"ok": False,
                     "code": HttpCode.SIGNER_UNAVAILABLE, "decision": "approved",
@@ -334,7 +334,8 @@ class PolicyService:
             if base != base.to_integral_value():
                 await _send_json(send, status=400, payload={"ok": False, "code": HttpCode.VALIDATION_ERROR})
                 return
-            approved_body["phase_b_context"] = {**self._phase_b_context, "amount_base_units": int(base)}
+            context_key = "phase_c_context" if self._loaded.document.wallet_phase == "C" else "phase_b_context"
+            approved_body[context_key] = {**self._phase_b_context, "amount_base_units": int(base)}
         approved = ApprovedRequest.model_validate(approved_body)
         signed = await self._signer_client.sign(approved)
         body = {
@@ -415,14 +416,14 @@ def create_app_from_env() -> PolicyService:
         )
     loaded = load_policy()
     phase_b_context = None
-    if loaded.document.wallet_phase == "B":
+    if loaded.document.wallet_phase in {"B", "C"}:
         from solders.pubkey import Pubkey
         from spl.token.instructions import get_associated_token_address
         names = ("AEA_SOLANA_NETWORK", "AEA_SOLANA_PUBLIC_WALLET", "AEA_SOLANA_TOKEN_MINT",
                  "AEA_SOLANA_SOURCE_TOKEN_ACCOUNT", "AEA_SOLANA_DESTINATION_OWNER")
         values = {name: os.environ.get(name) for name in names}
         if any(not value for value in values.values()):
-            raise ValueError("Phase B public transaction context is incomplete")
+            raise ValueError("Solana public transaction context is incomplete")
         mint = Pubkey.from_string(str(values["AEA_SOLANA_TOKEN_MINT"]))
         owner = Pubkey.from_string(str(values["AEA_SOLANA_DESTINATION_OWNER"]))
         phase_b_context = {

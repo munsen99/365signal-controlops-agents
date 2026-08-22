@@ -305,7 +305,7 @@ class WalletService:
 
 
 class SolanaReadService:
-    """Phase-B keyless wallet HTTP boundary: balances and chain evidence only."""
+    """Phase-B/C keyless wallet HTTP boundary: balances and chain evidence only."""
 
     def __init__(self, *, wallet: Any, config: Any, read_token: str,
                  debit_token: str, credit_token: str,
@@ -334,7 +334,7 @@ class SolanaReadService:
             return
         method, path = scope["method"], scope["path"]
         if method == "GET" and path == "/health":
-            await _send_json(send, status=200, payload={"ok": True, "code": HttpCode.OK, "wallet_phase": "B"})
+            await _send_json(send, status=200, payload={"ok": True, "code": HttpCode.OK, "wallet_phase": self._config.wallet_phase})
             return
         if method == "POST" and path in {"/v1/wallet/debit", "/v1/wallet/credit"}:
             # The Phase-B wallet process cannot sign even with Phase-A mutation
@@ -406,11 +406,11 @@ def create_app_from_env() -> WalletService | SolanaReadService:
     if not debit or not credit or not read:
         raise ValueError("wallet debit, credit, and read tokens are required")
     phase = os.environ.get("AEA_WALLET_PHASE", "A")
-    if phase == "B":
+    if phase in {"B", "C"}:
         from aea.wallet.solana import SolanaConfig, SolanaWallet
         config = SolanaConfig.model_validate({
-            "wallet_phase": "B", "network": os.environ.get("AEA_SOLANA_NETWORK"),
-            "rpc_url": os.environ.get("AEA_SOLANA_RPC_URL"),
+            "wallet_phase": phase, "network": os.environ.get("AEA_SOLANA_NETWORK"),
+            "rpc_url": _read_token("AEA_SOLANA_RPC_URL", "AEA_SOLANA_RPC_URL_FILE"),
             "public_wallet": os.environ.get("AEA_SOLANA_PUBLIC_WALLET"),
             "token_mint": os.environ.get("AEA_SOLANA_TOKEN_MINT"),
             "token_decimals": os.environ.get("AEA_SOLANA_TOKEN_DECIMALS", "6"),
@@ -424,7 +424,7 @@ def create_app_from_env() -> WalletService | SolanaReadService:
             model_token=_read_token("AEA_MODEL_TOKEN", "AEA_MODEL_TOKEN_FILE"),
             control_token=_read_token("AEA_CONTROL_TOKEN", "AEA_CONTROL_TOKEN_FILE"))
     if phase != "A":
-        raise ValueError("wallet phase must be A or B")
+        raise ValueError("wallet phase must be A, B, or C")
     return create_app(
         debit_token=debit,
         credit_token=credit,

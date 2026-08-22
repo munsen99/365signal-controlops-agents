@@ -1,0 +1,25 @@
+{
+  "configured_endpoint": "https://api.mainnet-beta.solana.com",
+  "get_health": {
+    "http_status": 200,
+    "result": "ok"
+  },
+  "get_latest_blockhash": {
+    "commitment": "finalized",
+    "http_status": 200,
+    "result_available": true
+  },
+  "get_version": {
+    "http_status": 200,
+    "solana_core": "4.2.0"
+  },
+  "tls": {
+    "certificate_hostname_matched": true,
+    "protocol": "TLSv1.3",
+    "verify_result": 0
+  },
+  "initial_no_output_classification": "TRANSIENT_EXTERNAL_RPC_CONNECTIVITY_FAILURE",
+  "alternative_endpoint_required": false,
+  "usable_for_eventual_operator_authorized_live_gate": true,
+  "live_transaction_executed": false
+}

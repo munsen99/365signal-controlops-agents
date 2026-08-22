@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# Operator-only Phase-C gate management and conspicuous live-transfer preview.
+set -o errexit
+set -o nounset
+set -o pipefail
+
+confirmation='CONFIRM_LIVE_USDC_TRANSFER'
+gate_file="${AEA_LIVE_SPEND_FILE:?AEA_LIVE_SPEND_FILE is required}"
+
+usage() {
+  echo 'Usage: scripts/phase-c-live-smoke preview AMOUNT DESTINATION_OWNER | enable CONFIRM_LIVE_USDC_TRANSFER | disable' >&2
+}
+
+case "${1:-}" in
+  preview)
+    [[ $# -eq 3 ]] || { usage; exit 2; }
+    [[ "${AEA_SOLANA_NETWORK:-}" == 'mainnet-beta' ]] || { echo 'network must be mainnet-beta' >&2; exit 1; }
+    [[ "${AEA_SOLANA_TOKEN_MINT:-}" == 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v' ]] || { echo 'mint must be canonical Solana USDC' >&2; exit 1; }
+    printf 'NETWORK=Solana mainnet-beta\n'
+    printf 'SOURCE_WALLET=%s\n' "${AEA_SOLANA_PUBLIC_WALLET:?required}"
+    printf 'DESTINATION_OWNER=%s\n' "$3"
+    printf 'ASSET=USDC\nAMOUNT=%s\n' "$2"
+    printf 'ESTIMATED_SOL_FEE=%s\n' "${AEA_ESTIMATED_SOL_FEE:?operator must provide current estimate}"
+    printf 'POLICY_VERSION=%s\nPOLICY_HASH=%s\n' "${AEA_POLICY_VERSION:?required}" "${AEA_POLICY_HASH:?required}"
+    if [[ -f "${gate_file}" ]]; then printf 'LIVE_SPEND_GATE=PRESENT\n'; else printf 'LIVE_SPEND_GATE=DISABLED\n'; fi
+    printf 'No transaction has been constructed, signed, or submitted.\n'
+    ;;
+  enable)
+    [[ $# -eq 2 && "$2" == "${confirmation}" ]] || { usage; exit 2; }
+    gate_dir="$(dirname -- "${gate_file}")"
+    install -d -m 0700 "${gate_dir}"
+    umask 077
+    printf '%s\n' "${confirmation}" >"${gate_file}"
+    chmod 0600 "${gate_file}"
+    echo 'Phase-C live-spend gate enabled; it will not automatically re-enable after removal.'
+    ;;
+  disable)
+    if [[ -e "${gate_file}" || -L "${gate_file}" ]]; then
+      mv -- "${gate_file}" "${gate_file}.disabled.$(date -u +%Y%m%dT%H%M%SZ)"
+    fi
+    echo 'Phase-C live-spend gate disabled.'
+    ;;
+  *) usage; exit 2 ;;
+esac

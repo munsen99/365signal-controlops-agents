@@ -1,0 +1,25 @@
+{
+  "gate_a_regression": "PASS",
+  "gate_b_accepted_evidence_regression": "PASS",
+  "pr13_phase_b_accepted_evidence_regression": "PASS",
+  "phase_c_focused_tests": "26 passed",
+  "full_suite": "345 passed",
+  "git_diff_check": "PASS",
+  "live_transaction_executed": false,
+  "live_settlement_status": "BLOCKED_OPERATOR_AUTHORIZATION_AND_FUNDING_REQUIRED",
+  "security_assertions": {
+    "arbitrary_signing_api_absent": true,
+    "canonical_mainnet_usdc_only": true,
+    "control_has_no_live_gate_mount": true,
+    "destination_ata_derived_and_validated": true,
+    "freeze_and_signer_disable_checked": true,
+    "hmac_binds_phase_c_context": true,
+    "key_mounted_only_to_signer": true,
+    "live_spend_defaults_disabled": true,
+    "mainnet_genesis_mismatch_fails_closed": true,
+    "model_has_no_live_gate_mutation": true,
+    "parsed_transfer_checked_evidence_required": true,
+    "rpc_credentials_scrubbed": true,
+    "wallet_read_service_cannot_sign": true
+  }
+}

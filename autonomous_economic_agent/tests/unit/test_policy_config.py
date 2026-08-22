@@ -58,7 +58,7 @@ def test_policy_document_forbids_extra_fields() -> None:
         PolicyDocument.model_validate(raw)
 
 
-def test_load_policy_rejects_non_phase_a(tmp_path: Path) -> None:
+def test_load_policy_accepts_phase_c_for_live_backend(tmp_path: Path) -> None:
     raw = yaml.safe_load(POLICY_PATH.read_text(encoding="utf-8"))
     raw["wallet_phase"] = "C"
     path = tmp_path / "policy.yaml"
@@ -67,8 +67,8 @@ def test_load_policy_rejects_non_phase_a(tmp_path: Path) -> None:
     dest.write_text((CONFIG_DIR / "destinations.yaml").read_text(encoding="utf-8"), encoding="utf-8")
     raw["destinations"]["file"] = "destinations.yaml"
     path.write_text(yaml.safe_dump(raw), encoding="utf-8")
-    with pytest.raises(ValueError, match="wallet_phase A"):
-        load_policy(policy_path=path, destinations_path=dest)
+    loaded = load_policy(policy_path=path, destinations_path=dest)
+    assert loaded.document.wallet_phase == "C"
 
 
 def test_no_solana_or_solders_import() -> None:

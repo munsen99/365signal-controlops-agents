@@ -22,6 +22,7 @@ from aea.signer.backend import (
     verify_request_hmac,
 )
 from aea.signer.freeze import inspect_freeze
+from aea.signer.live_gate import inspect_live_spend_gate
 from aea.types import format_amount
 from aea.wallet.solana import (
     SolanaBackendError,
@@ -81,6 +82,8 @@ class SolanaSigner:
         signer_enabled: bool = True,
         db_frozen_reader: Callable[[], Any] | None = None,
         db_signer_enabled_reader: Callable[[], Any] | None = None,
+        live_spend_path: Path | str | None = None,
+        live_operator_intent: str | None = None,
     ) -> None:
         if not HASH_RE.fullmatch(expected_policy_hash):
             raise ValueError("expected_policy_hash must be 64 lowercase hex characters")
@@ -89,7 +92,7 @@ class SolanaSigner:
         if str(keypair.pubkey()) != config.public_wallet:
             raise ValueError("configured public wallet does not match signer key")
         if not approved_destinations:
-            raise ValueError("at least one approved Phase-B destination is required")
+            raise ValueError("at least one approved Solana destination is required")
         self._freeze_path = freeze_path
         self._expected_policy_version = expected_policy_version
         self._expected_policy_hash = expected_policy_hash
@@ -101,6 +104,8 @@ class SolanaSigner:
         self._enabled = bool(signer_enabled)
         self._db_frozen_reader = db_frozen_reader
         self._db_signer_enabled_reader = db_signer_enabled_reader
+        self._live_spend_path = live_spend_path
+        self._live_operator_intent = live_operator_intent
         self._lock = Lock()
         self._results: dict[UUID, SignResult] = {}
         self._hashes: dict[UUID, str] = {}
@@ -147,11 +152,17 @@ class SolanaSigner:
             return HttpCode.AGENT_FROZEN
         if not self.is_effectively_enabled():
             return HttpCode.SIGNER_DISABLED
+        if self._config.wallet_phase == "C":
+            live = inspect_live_spend_gate(
+                self._live_spend_path, operator_intent=self._live_operator_intent
+            )
+            if not live.enabled:
+                return HttpCode.LIVE_SPEND_DISABLED
         return None
 
     def _intent(self, request: SignRequest) -> SolanaTransferIntent:
         approved = request.approved_request
-        context = approved.phase_b_context
+        context = approved.phase_c_context if self._config.wallet_phase == "C" else approved.phase_b_context
         if context is None:
             raise SolanaBackendError(ReasonCode.POLICY_TAMPER)
         destination_owner = self._destinations.get(approved.destination)
@@ -248,6 +259,18 @@ class SolanaSigner:
                 return fail(unsafe)
             if signed is None:
                 try:
+                    if self._config.wallet_phase == "C":
+                        await self._rpc.validate(self._config, for_spend=True)
+                        destination = await self._rpc.validate_destination(
+                            self._config, intent.destination_owner
+                        )
+                        if destination != intent.destination_token_account:
+                            raise SolanaBackendError("DESTINATION_ACCOUNT_MISMATCH")
+                        # Network/account checks can block on RPC. Re-read all
+                        # independent controls at the actual signing boundary.
+                        unsafe = self._safe()
+                        if unsafe:
+                            return fail(unsafe)
                     signed = await self._rpc.prepare_and_sign(self._config, intent, self._keypair)
                 except SolanaBackendError as exc:
                     return fail(exc.code)
@@ -271,6 +294,12 @@ class SolanaSigner:
             )
             if not required_ok:
                 return fail(HttpCode.TIMEOUT if evidence.state in {"timeout", "unknown", "processed"} else HttpCode.NETWORK_FAILURE)
+            try:
+                evidence = await self._rpc.verify_transfer(self._config, signed.signature, intent)
+            except SolanaBackendError as exc:
+                return fail(exc.code)
+            if not evidence.transfer_verified:
+                return fail("CHAIN_TRANSFER_MISMATCH")
             result = SignResult(ok=True, code=HttpCode.OK, request_id=request_id,
                 correlation_id=correlation_id, tx_id=signed.signature,
                 canonical_hash=canonical, fee_lamports=evidence.fee_lamports)
