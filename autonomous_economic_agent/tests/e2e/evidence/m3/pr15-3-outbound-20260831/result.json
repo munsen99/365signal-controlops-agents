@@ -1,0 +1,138 @@
+{
+  "experiment_date": "2026-08-31",
+  "observed_at": "2026-08-31T18:50:11Z",
+  "result": "PR15_3_BLOCKED",
+  "OUTBOUND_SERVICE_OFFER": "READY",
+  "SAFE_PUBLICATION_VENUE": "NONE",
+  "MARKETPLACE": null,
+  "COUNTERPARTY_RESPONSES": 0,
+  "UNIQUE_COUNTERPARTIES": 0,
+  "ELIGIBLE_FOR_PR16_REVIEW": 0,
+  "CAPITAL_BEARING_ACTIONS": "NONE",
+  "CAPITAL_MOVED": "NONE",
+  "WALLET_AUTHORITY_EXPANSION": "NONE",
+  "JOB_ACCEPTED": "NO",
+  "PAID_WORK_SUBMITTED": "NO",
+  "PR16": "NOT_STARTED",
+  "selected_marketplace": null,
+  "selection_reason": "No investigated venue supports a non-binding service advertisement without account-secret issuance, identity claim, vendor custody, wallet signing, or paused credentials.",
+  "venues": [
+    {
+      "marketplace": "workpnp",
+      "compatible": false,
+      "reason": "Worker advertising requires POST /agents/register (API key issued once) and a human email+X claim; unclaimed agents cannot post. POST /jobs is buyer hiring and later x402 funding, not a service catalog.",
+      "required_blocked_action": "account_creation_secret_and_identity_claim"
+    },
+    {
+      "marketplace": "the402",
+      "compatible": false,
+      "reason": "Provider listing requires operator API credentials; marketplace is paused with zero postings.",
+      "required_blocked_action": "operator_credentials"
+    },
+    {
+      "marketplace": "moltjobs",
+      "compatible": false,
+      "reason": "Turnkey wallet/withdraw authority and Base vs Polygon docs remain unresolved.",
+      "required_blocked_action": "vendor_custody"
+    },
+    {
+      "marketplace": "hober",
+      "compatible": false,
+      "reason": "SIWX/session keys and gateway signing; not used merely to create activity.",
+      "required_blocked_action": "wallet_signing"
+    },
+    {
+      "marketplace": "bothire",
+      "compatible": false,
+      "reason": "Official generate-wallet returns a private key; no usable open-task board.",
+      "required_blocked_action": "private_key_generation"
+    }
+  ],
+  "canonical_offer": {
+    "agent": "econo",
+    "services": [
+      {
+        "id": "quick_research",
+        "name": "Quick Research Check",
+        "capabilities": [
+          "supplied_material_research",
+          "text_summarization"
+        ],
+        "output": [
+          "markdown",
+          "json"
+        ],
+        "price_usd": "2.000000",
+        "summary": "Concise research result with source links where the material is supplied or public."
+      },
+      {
+        "id": "structured_comparison",
+        "name": "Structured Comparison",
+        "capabilities": [
+          "public_data_transformation",
+          "classification"
+        ],
+        "output": [
+          "markdown",
+          "json"
+        ],
+        "price_usd": "5.000000",
+        "summary": "Compare up to three options in a structured table with a short conclusion."
+      },
+      {
+        "id": "technical_research_brief",
+        "name": "Technical Research Brief",
+        "capabilities": [
+          "supplied_material_research",
+          "text_code_review"
+        ],
+        "output": [
+          "markdown"
+        ],
+        "price_usd": "10.000000",
+        "summary": "Structured Markdown brief with findings, conclusion, and cited sources."
+      }
+    ],
+    "settlement": {
+      "preferred_asset": "USDC",
+      "preferred_chain": "base"
+    },
+    "constraints": {
+      "policy_evaluation_required": true,
+      "custody_delegation": false,
+      "arbitrary_signing": false,
+      "public_hosting_supported": false,
+      "escrow_funding_by_econo": false,
+      "external_wallet_debit": false
+    },
+    "restrictions": [
+      "no_custody_delegation",
+      "no_private_key_sharing",
+      "no_arbitrary_wallet_authority",
+      "no_public_hosting",
+      "no_authenticated_third_party_accounts",
+      "jobs_subject_to_policy_evaluation"
+    ],
+    "non_binding": true,
+    "requires_policy_approval": true
+  },
+  "public_text": "Econo \u2014 bounded research and analysis agent.\nOutputs: json, markdown.\nPreferred settlement: USDC on base.\nPaid work is evaluated against execution and settlement policy before any commitment.\nNo custody delegation. No private-key sharing. No arbitrary signing. No escrow funding by Econo.\n\nMenu:\n- Quick Research Check (2.000000 USDC): Concise research result with source links where the material is supplied or public. Outputs: markdown, json.\n- Structured Comparison (5.000000 USDC): Compare up to three options in a structured table with a short conclusion. Outputs: markdown, json.\n- Technical Research Brief (10.000000 USDC): Structured Markdown brief with findings, conclusion, and cited sources. Outputs: markdown.\n\nThis listing is an advertisement only. It is not an accepted job, contract, or SLA.",
+  "advertise_result": {
+    "published": false,
+    "mode": "local",
+    "reason": "no_safe_public_publication_venue",
+    "advertisement_id": null
+  },
+  "inbound_responses": [],
+  "negotiation_template": "This opportunity is being evaluated against execution and settlement policy.",
+  "external_writes": [],
+  "secrets_in_evidence": false,
+  "profile_constraints": [
+    "no_custody_delegation",
+    "no_private_key_sharing",
+    "no_arbitrary_wallet_authority",
+    "no_public_hosting",
+    "no_authenticated_third_party_accounts",
+    "jobs_subject_to_policy_evaluation"
+  ]
+}

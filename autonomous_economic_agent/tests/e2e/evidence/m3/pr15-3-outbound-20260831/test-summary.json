@@ -1,0 +1,8 @@
+{
+  "focused_outbound": "PASS",
+  "marketplace_regression": "PASS",
+  "git_diff_check": "PASS",
+  "live_publication": false,
+  "capital_bearing_actions": [],
+  "pr16_started": false
+}

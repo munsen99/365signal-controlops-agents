@@ -532,3 +532,11 @@ Sanitized probe evidence: `tests/e2e/evidence/m3/pr15-1-liquidity-20260831/`.
 Outcome: **MARKET PRESENCE / DISCOVERY / INTELLIGENCE: PASS**. Capital-bearing actions: **none**. PR16: **not started**.
 
 Adds a structured Econo `ServiceProfile`, GET-only public discovery, opportunity classification, and poster-concentration metrics. It does not add a new live adapter and does not bid, accept, submit, or sign. Evidence: `tests/e2e/evidence/m3/pr15-2-market-presence-20260831/`. Details: `docs/pr15-2-market-presence.md`.
+
+---
+
+## PR15.3 Outbound market experiment — 2026-08-31
+
+Outcome: **PR15.3: BLOCKED**. Canonical offer: **READY**. Safe publication venue: **NONE**. Capital-bearing actions: **none**. PR16: **not started**.
+
+workpnp remains the preferred future venue but still requires registration (one-time API key) plus email/X claim to post, and `POST /jobs` is buyer hiring with x402 funding rather than a service catalog. No live advertisement was published. Evidence: `tests/e2e/evidence/m3/pr15-3-outbound-20260831/`. Details: `docs/pr15-3-outbound.md`.
