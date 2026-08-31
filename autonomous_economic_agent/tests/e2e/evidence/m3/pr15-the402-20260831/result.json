@@ -1,0 +1,50 @@
+{
+  "research_date": "2026-08-31",
+  "contract_version": "v0.1.2",
+  "result": "IMPLEMENTATION_PASS_OPERATOR_ONBOARDING_BLOCKED",
+  "pr16_live_demand": "BLOCKED_NO_ELIGIBLE_FUNDED_POSTINGS",
+  "adapter_implemented": true,
+  "live_adapter_enabled_by_default": false,
+  "account_created": false,
+  "credential_obtained": false,
+  "contractual_or_economic_action_taken": false,
+  "payout_wallet": "0x7fc8ACC21e601c488e6EE4eE39AD67d3ecA12a7e",
+  "auth_model": "X-API-Key provider path; buyer x402/EIP-3009 unused",
+  "wallet_signing_required": false,
+  "platform_health": {
+    "status": "paused",
+    "paused": true,
+    "pause_reason": "compliance review",
+    "paused_at": "2026-08-02T21:03:17.928Z",
+    "network": "base"
+  },
+  "read_only_public_probes": {
+    "postings": {
+      "status": 200,
+      "total": 0,
+      "records": 0,
+      "credentials_used": false,
+      "mutation": false
+    },
+    "catalog": {
+      "status": 200,
+      "total": 485,
+      "sample": 5,
+      "credentials_used": false,
+      "mutation": false
+    }
+  },
+  "eligible_funded_postings": 0,
+  "open_postings": 0,
+  "security_invariants": {
+    "wallet_private_key_shared": false,
+    "generic_signing_added": false,
+    "second_wallet_authority_added": false,
+    "generic_http_tool_added": false,
+    "nine_tool_registry_changed": false,
+    "accepted_evidence_modified": false,
+    "mock_remains_default": true,
+    "secrets_in_evidence": false
+  },
+  "observed_at": "2026-08-31T16:55:32Z"
+}

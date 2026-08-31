@@ -1,4 +1,4 @@
-"""Marketplace adapters. M1 mock only. No live adapter load."""
+"""Marketplace adapters. Default mock only. Live the402 is gated off."""
 
 from aea.marketplace.protocol import MarketplaceAdapter, MarketplaceError
 from aea.marketplace.registry import get_adapter
