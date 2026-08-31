@@ -51,3 +51,22 @@ def authorize_control_only(
         if other and compare_digest(token, other):
             return HttpCode.FORBIDDEN
     return HttpCode.UNAUTHENTICATED
+
+
+def authorize_observability(
+    token: str | None,
+    *,
+    observability_token: str,
+    known_rejected: tuple[str, ...] = (),
+) -> HttpCode | None:
+    """GET /observability/status is observability-token only. Fail closed if unset."""
+    if not observability_token:
+        return HttpCode.UNAUTHENTICATED
+    if token is None:
+        return HttpCode.UNAUTHENTICATED
+    if compare_digest(token, observability_token):
+        return None
+    for other in known_rejected:
+        if other and compare_digest(token, other):
+            return HttpCode.FORBIDDEN
+    return HttpCode.UNAUTHENTICATED

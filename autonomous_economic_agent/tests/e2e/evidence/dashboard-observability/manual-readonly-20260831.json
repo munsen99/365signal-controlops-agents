@@ -1,0 +1,272 @@
+{
+  "captured_at": "2026-08-31T15:08:28.239571+00:00",
+  "control_snapshot": {
+    "agent": {
+      "adapter": null,
+      "current_job_id": null,
+      "health": "degraded",
+      "last_job_id": null,
+      "last_update": "2026-08-31T15:08:28.216810Z",
+      "marketplace": null,
+      "runtime_health": "degraded",
+      "state": "degraded"
+    },
+    "code": "OK",
+    "current_job": {
+      "accepted_at": null,
+      "expected_cost_usdc": null,
+      "expected_margin_usdc": null,
+      "expected_reward_usdc": null,
+      "external_reference": null,
+      "job_id": null,
+      "marketplace": null,
+      "opportunity_id": null,
+      "payment_state": null,
+      "present": false,
+      "status": null,
+      "submitted_at": null,
+      "title": null,
+      "untrusted": true
+    },
+    "economics": {
+      "attributable_costs_usdc": "0.000000",
+      "available_capital_usdc": "20.000000",
+      "capital_at_risk_usdc": "0.000000",
+      "daily_spend_usdc": "0.000000",
+      "fee_reserve_eth": null,
+      "fee_reserve_sol": "0.050000",
+      "opening_capital_usdc": "20.000000",
+      "realized_pnl_usdc": "0.000000",
+      "source": "ledger",
+      "unit_of_account": "USDC",
+      "verified_revenue_usdc": "0.000000"
+    },
+    "generated_at": "2026-08-31T15:08:28.216810Z",
+    "ok": true,
+    "policy": {
+      "detail": null,
+      "hash": "9550e613fb06c8b578676101de49ca0670be6177df80f20c11dd53a919a00f1e",
+      "verified": "yes",
+      "version": "policy/v0.1.0",
+      "wallet_phase": "A"
+    },
+    "rails": [
+      {
+        "canonical_token": null,
+        "chain_id": null,
+        "configured": true,
+        "detail": "solana wallet read failed",
+        "health": "unavailable",
+        "last_settlement_ref": null,
+        "last_settlement_status": null,
+        "native_asset": "SOL",
+        "native_reserve": null,
+        "network": "mainnet-beta",
+        "public_wallet": "So11111111111111111111111111111111111111112",
+        "rail": "solana",
+        "reconciliation": "healthy",
+        "usdc_balance": null
+      },
+      {
+        "canonical_token": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        "chain_id": 84532,
+        "configured": true,
+        "detail": "evm wallet read failed",
+        "health": "unavailable",
+        "last_settlement_ref": null,
+        "last_settlement_status": null,
+        "native_asset": "ETH",
+        "native_reserve": null,
+        "network": "base-sepolia",
+        "public_wallet": "0x7fc8ACC21e601c488e6EE4eE39AD67d3ecA12a7e",
+        "rail": "evm",
+        "reconciliation": "unavailable",
+        "usdc_balance": null
+      }
+    ],
+    "recent_events": [],
+    "reconciliation": {
+      "detail": null,
+      "health": "healthy",
+      "mismatches": [],
+      "rows": [
+        {
+          "agent_id": "economic-agent",
+          "asset": "SOL",
+          "delta": "0.000000",
+          "ledger_balance": "0.050000",
+          "opening_balance": "0.050000",
+          "reconstructed_balance": "0.050000"
+        },
+        {
+          "agent_id": "economic-agent",
+          "asset": "USDC",
+          "delta": "0.000000",
+          "ledger_balance": "20.000000",
+          "opening_balance": "20.000000",
+          "reconstructed_balance": "20.000000"
+        }
+      ]
+    },
+    "supervisor": {
+      "detail": null,
+      "frozen": "no",
+      "live_spend_gate": "absent",
+      "live_spend_gate_detail": "operator_intent_missing",
+      "loop_enabled": "yes",
+      "readable": "unknown",
+      "signer_enabled": "yes",
+      "updated_at": null,
+      "updated_by": null
+    },
+    "warnings": [
+      "supervisor HTTP status is unavailable",
+      "solana wallet state is unavailable",
+      "evm wallet state is unavailable"
+    ]
+  },
+  "dashboard_nav": [
+    "aea",
+    "hermes-achievements",
+    "kanban"
+  ],
+  "dashboard_url": "http://127.0.0.1:9119/aea",
+  "gate": "AEA dashboard observability",
+  "notes": [
+    "Read-only control and dashboard plugin. Live spend gate absent.",
+    "Opening capital from ledger is distinct from verified revenue.",
+    "SOL and ETH rails are separate. Unavailable rails are not healthy.",
+    "Supervisor HTTP unreadability is fail-closed.",
+    "No secrets in this file."
+  ],
+  "plugin_snapshot": {
+    "agent": {
+      "adapter": null,
+      "current_job_id": null,
+      "health": "degraded",
+      "last_job_id": null,
+      "last_update": "2026-08-31T15:08:28.230827Z",
+      "marketplace": null,
+      "runtime_health": "degraded",
+      "state": "degraded"
+    },
+    "code": "OK",
+    "current_job": {
+      "accepted_at": null,
+      "expected_cost_usdc": null,
+      "expected_margin_usdc": null,
+      "expected_reward_usdc": null,
+      "external_reference": null,
+      "job_id": null,
+      "marketplace": null,
+      "opportunity_id": null,
+      "payment_state": null,
+      "present": false,
+      "status": null,
+      "submitted_at": null,
+      "title": null,
+      "untrusted": true
+    },
+    "economics": {
+      "attributable_costs_usdc": "0.000000",
+      "available_capital_usdc": "20.000000",
+      "capital_at_risk_usdc": "0.000000",
+      "daily_spend_usdc": "0.000000",
+      "fee_reserve_eth": null,
+      "fee_reserve_sol": "0.050000",
+      "opening_capital_usdc": "20.000000",
+      "realized_pnl_usdc": "0.000000",
+      "source": "ledger",
+      "unit_of_account": "USDC",
+      "verified_revenue_usdc": "0.000000"
+    },
+    "generated_at": "2026-08-31T15:08:28.230827Z",
+    "ok": true,
+    "policy": {
+      "detail": null,
+      "hash": "9550e613fb06c8b578676101de49ca0670be6177df80f20c11dd53a919a00f1e",
+      "verified": "yes",
+      "version": "policy/v0.1.0",
+      "wallet_phase": "A"
+    },
+    "rails": [
+      {
+        "canonical_token": null,
+        "chain_id": null,
+        "configured": true,
+        "detail": "solana wallet read failed",
+        "health": "unavailable",
+        "last_settlement_ref": null,
+        "last_settlement_status": null,
+        "native_asset": "SOL",
+        "native_reserve": null,
+        "network": "mainnet-beta",
+        "public_wallet": "So11111111111111111111111111111111111111112",
+        "rail": "solana",
+        "reconciliation": "healthy",
+        "usdc_balance": null
+      },
+      {
+        "canonical_token": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        "chain_id": 84532,
+        "configured": true,
+        "detail": "evm wallet read failed",
+        "health": "unavailable",
+        "last_settlement_ref": null,
+        "last_settlement_status": null,
+        "native_asset": "ETH",
+        "native_reserve": null,
+        "network": "base-sepolia",
+        "public_wallet": "0x7fc8ACC21e601c488e6EE4eE39AD67d3ecA12a7e",
+        "rail": "evm",
+        "reconciliation": "unavailable",
+        "usdc_balance": null
+      }
+    ],
+    "recent_events": [],
+    "reconciliation": {
+      "detail": null,
+      "health": "healthy",
+      "mismatches": [],
+      "rows": [
+        {
+          "agent_id": "economic-agent",
+          "asset": "SOL",
+          "delta": "0.000000",
+          "ledger_balance": "0.050000",
+          "opening_balance": "0.050000",
+          "reconstructed_balance": "0.050000"
+        },
+        {
+          "agent_id": "economic-agent",
+          "asset": "USDC",
+          "delta": "0.000000",
+          "ledger_balance": "20.000000",
+          "opening_balance": "20.000000",
+          "reconstructed_balance": "20.000000"
+        }
+      ]
+    },
+    "supervisor": {
+      "detail": null,
+      "frozen": "no",
+      "live_spend_gate": "absent",
+      "live_spend_gate_detail": "operator_intent_missing",
+      "loop_enabled": "yes",
+      "readable": "unknown",
+      "signer_enabled": "yes",
+      "updated_at": null,
+      "updated_by": null
+    },
+    "warnings": [
+      "supervisor HTTP status is unavailable",
+      "solana wallet state is unavailable",
+      "evm wallet state is unavailable"
+    ]
+  },
+  "spend_gate": "absent",
+  "write_probe": {
+    "POST /observability/status": 405,
+    "POST /v1/sign": 404
+  }
+}

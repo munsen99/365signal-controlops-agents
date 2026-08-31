@@ -515,6 +515,11 @@ def test_plugin_handlers_accept_hermes_positional_argument_dict(monkeypatch) -> 
 
 
 def test_lmstudio_wire_messages_have_valid_content(monkeypatch) -> None:
+    import sys
+
+    workspace = Path(__file__).resolve().parents[3]
+    if str(workspace) not in sys.path:
+        sys.path.insert(0, str(workspace))
     from autonomous_economic_agent.tests.e2e.lmstudio_preflight import (
         request_body,
         validate_messages,

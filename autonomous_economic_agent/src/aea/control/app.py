@@ -1,7 +1,8 @@
 """Model-facing control ASGI on 127.0.0.1:18700.
 
 POST /v1/tools/{nine} accepts AEA_MODEL_TOKEN only. POST /v1/payment-requests
-accepts AEA_CONTROL_TOKEN only. Control never holds signer HMAC or debit.
+accepts AEA_CONTROL_TOKEN only. GET /observability/status accepts
+AEA_OBSERVABILITY_TOKEN only. Control never holds signer HMAC or debit.
 """
 
 from __future__ import annotations
@@ -18,7 +19,12 @@ from pydantic import ValidationError
 
 from aea import AGENT_ID, CONSTITUTION_VERSION, NINE_TOOLS, POLICY_VERSION
 from aea.config import LoadedPolicy, load_policy
-from aea.control.auth import authorize_control_only, authorize_model_tools, bearer_token
+from aea.control.auth import (
+    authorize_control_only,
+    authorize_model_tools,
+    authorize_observability,
+    bearer_token,
+)
 from aea.control.freeze import inspect_control_safety, tool_is_mutating
 from aea.control.plane import EconomicPlane
 from aea.control.schemas import TOOL_MODELS, RequestPaymentRequest
@@ -38,6 +44,20 @@ Receive = Callable[[], Awaitable[dict[str, Any]]]
 Send = Callable[[dict[str, Any]], Awaitable[None]]
 
 WalletTxLookup = Callable[[str], Any]
+
+
+def _normalise_wallet_balances(body: Any) -> dict[str, Any]:
+    """Keep every supported rail asset; discard response metadata."""
+    from decimal import Decimal
+
+    balances = body.get("balances") if isinstance(body, dict) else None
+    if not isinstance(balances, dict):
+        balances = body if isinstance(body, dict) else {}
+    return {
+        key: Decimal(str(value))
+        for key, value in balances.items()
+        if key in {"USDC", "SOL", "ETH"}
+    }
 
 
 def _json_bytes(payload: dict[str, Any]) -> bytes:
@@ -139,11 +159,18 @@ class ControlService:
         debit_token: str | None = None,
         credit_token: str | None = None,
         marketplace_token: str | None = None,
+        observability_token: str | None = None,
         wallet_get_tx: WalletTxLookup | None = None,
         state_reader: Callable[[], Any] | None = None,
         ledger: LedgerService | None = None,
         payment: PaymentOrchestrator | None = None,
         wallet_balances: Callable[[], Any] | None = None,
+        wallet_status: Callable[[], Any] | None = None,
+        extra_wallet_status: tuple[Callable[[], Any], ...] = (),
+        supervisor_status: Callable[[], Any] | None = None,
+        live_gate: Any | None = None,
+        configured_solana: dict[str, Any] | None = None,
+        configured_evm: dict[str, Any] | None = None,
         auto_commit: bool = True,
     ) -> None:
         if not model_token:
@@ -155,6 +182,7 @@ class ControlService:
         self._supervisor = supervisor_token
         self._credit = credit_token
         self._marketplace_token = marketplace_token
+        self._observability = observability_token
         self._freeze_path = freeze_path
         self._marketplace = marketplace
         self._policy = policy
@@ -163,6 +191,12 @@ class ControlService:
         self._ledger = ledger
         self._payment = payment
         self._wallet_balances = wallet_balances
+        self._wallet_status = wallet_status
+        self._extra_wallet_status = extra_wallet_status
+        self._supervisor_status = supervisor_status
+        self._live_gate = live_gate
+        self._configured_solana = configured_solana or {}
+        self._configured_evm = configured_evm or {}
         self._auto_commit = auto_commit
         self._idem: dict[tuple[str, str], tuple[str, dict[str, Any]]] = {}
         self._plane = None
@@ -186,6 +220,7 @@ class ControlService:
                 self._supervisor,
                 self._credit,
                 self._marketplace_token,
+                self._observability,
             )
             if t
         )
@@ -193,7 +228,26 @@ class ControlService:
     def _known_rejected(self) -> tuple[str, ...]:
         return tuple(
             t
-            for t in (self._control, self._supervisor, self._credit, self._marketplace_token)
+            for t in (
+                self._control,
+                self._supervisor,
+                self._credit,
+                self._marketplace_token,
+                self._observability,
+            )
+            if t
+        )
+
+    def _observability_rejected(self) -> tuple[str, ...]:
+        return tuple(
+            t
+            for t in (
+                self._model,
+                self._control,
+                self._supervisor,
+                self._credit,
+                self._marketplace_token,
+            )
             if t
         )
 
@@ -205,6 +259,17 @@ class ControlService:
         headers = _header_map(scope)
         if method == "GET" and path == "/health":
             await _send_json(send, status=200, payload={"ok": True, "code": HttpCode.OK})
+            return
+        if path == "/observability/status":
+            if method != "GET":
+                await _send_json(
+                    send,
+                    status=405,
+                    payload={"ok": False, "code": HttpCode.NOT_FOUND},
+                    secrets=self._secrets(),
+                )
+                return
+            await self._observability_status(headers, send)
             return
         if method == "POST" and path.startswith("/v1/tools/"):
             name = path.removeprefix("/v1/tools/")
@@ -219,6 +284,39 @@ class ControlService:
             payload={"ok": False, "code": HttpCode.NOT_FOUND},
             secrets=self._secrets(),
         )
+
+    async def _observability_status(self, headers: dict[str, str], send: Send) -> None:
+        denied = authorize_observability(
+            bearer_token(headers),
+            observability_token=self._observability or "",
+            known_rejected=self._observability_rejected(),
+        )
+        if denied:
+            await _send_json(
+                send,
+                status=_status_for(denied),
+                payload={"ok": False, "code": denied},
+                secrets=self._secrets(),
+            )
+            return
+        from aea.observability.sanitize import serialize_status
+        from aea.observability.service import ObservabilityCollector
+
+        collector = ObservabilityCollector(
+            policy=self._policy,
+            ledger=self._ledger,
+            safety=self._safety(),
+            wallet_status=self._wallet_status,
+            extra_wallet_status=self._extra_wallet_status,
+            supervisor_status=self._supervisor_status,
+            live_gate=self._live_gate,
+            configured_solana=self._configured_solana,
+            configured_evm=self._configured_evm,
+            secrets=self._secrets(),
+        )
+        status = collector.snapshot()
+        payload = serialize_status(status, secrets=self._secrets())
+        await _send_json(send, status=200, payload=payload, secrets=self._secrets())
 
     async def _tool(
         self,
@@ -497,10 +595,17 @@ def create_app(
     supervisor_token: str | None = None,
     credit_token: str | None = None,
     marketplace_token: str | None = None,
+    observability_token: str | None = None,
     state_reader: Callable[[], Any] | None = None,
     ledger: LedgerService | None = None,
     payment: PaymentOrchestrator | None = None,
     wallet_balances: Callable[[], Any] | None = None,
+    wallet_status: Callable[[], Any] | None = None,
+    extra_wallet_status: tuple[Callable[[], Any], ...] = (),
+    supervisor_status: Callable[[], Any] | None = None,
+    live_gate: Any | None = None,
+    configured_solana: dict[str, Any] | None = None,
+    configured_evm: dict[str, Any] | None = None,
     auto_commit: bool = True,
     hmac_key: str | None = None,
     debit_token: str | None = None,
@@ -515,11 +620,18 @@ def create_app(
         supervisor_token=supervisor_token,
         credit_token=credit_token,
         marketplace_token=marketplace_token,
+        observability_token=observability_token,
         wallet_get_tx=wallet_get_tx,
         state_reader=state_reader,
         ledger=ledger,
         payment=payment,
         wallet_balances=wallet_balances,
+        wallet_status=wallet_status,
+        extra_wallet_status=extra_wallet_status,
+        supervisor_status=supervisor_status,
+        live_gate=live_gate,
+        configured_solana=configured_solana,
+        configured_evm=configured_evm,
         auto_commit=auto_commit,
         hmac_key=hmac_key,
         debit_token=debit_token,
@@ -560,8 +672,6 @@ def create_app_from_env() -> ControlService:
     market_token = _read_token("AEA_MARKETPLACE_TOKEN", "AEA_MARKETPLACE_TOKEN_FILE")
 
     def _wallet_balances() -> dict:
-        from decimal import Decimal
-
         import httpx
 
         if not read_token:
@@ -575,14 +685,7 @@ def create_app_from_env() -> ControlService:
             body = response.json()
         except Exception:
             return {}
-        bals = body.get("balances") if isinstance(body, dict) else None
-        if not isinstance(bals, dict):
-            bals = body if isinstance(body, dict) else {}
-        out = {}
-        for key, value in bals.items():
-            if key in {"USDC", "SOL"}:
-                out[key] = Decimal(str(value))
-        return out
+        return _normalise_wallet_balances(body)
 
     def _wallet_tx(tx_id: str):
         import httpx
@@ -613,16 +716,120 @@ def create_app_from_env() -> ControlService:
             wallet_balances=_wallet_balances,
             control_token=control,
         )
+    observability = _read_token("AEA_OBSERVABILITY_TOKEN", "AEA_OBSERVABILITY_TOKEN_FILE")
+    supervisor_url = os.environ.get("AEA_SUPERVISOR_URL", "http://127.0.0.1:18703")
+
+    def _wallet_status() -> dict[str, Any]:
+        import httpx
+
+        if not read_token:
+            return {"ok": False, "unavailable": True}
+        try:
+            response = httpx.get(
+                wallet_url.rstrip("/") + "/v1/wallet/balances",
+                headers={"Authorization": f"Bearer {read_token}"},
+                timeout=3.0,
+            )
+            body = response.json()
+        except Exception:
+            return {"ok": False, "unavailable": True}
+        if not isinstance(body, dict):
+            return {"ok": False, "unavailable": True}
+        balances = _normalise_wallet_balances(body)
+        return {
+            "ok": bool(body.get("ok", True)),
+            "balances": {k: str(v) for k, v in balances.items()},
+            "public_wallet": body.get("public_wallet"),
+            "network": body.get("network"),
+            "chain_id": body.get("chain_id"),
+            "token_contract": body.get("token_contract") or body.get("token_mint"),
+        }
+
+    extra_status: list[Callable[[], Any]] = []
+    extra_url = os.environ.get("AEA_EVM_WALLET_URL") or os.environ.get("AEA_SOLANA_WALLET_URL")
+    if extra_url and extra_url.rstrip("/") != wallet_url.rstrip("/"):
+
+        def _extra_wallet_status(url: str = extra_url) -> dict[str, Any]:
+            import httpx
+
+            if not read_token:
+                return {"ok": False, "unavailable": True}
+            try:
+                response = httpx.get(
+                    url.rstrip("/") + "/v1/wallet/balances",
+                    headers={"Authorization": f"Bearer {read_token}"},
+                    timeout=3.0,
+                )
+                body = response.json()
+            except Exception:
+                return {"ok": False, "unavailable": True}
+            if not isinstance(body, dict):
+                return {"ok": False, "unavailable": True}
+            balances = _normalise_wallet_balances(body)
+            return {
+                "ok": bool(body.get("ok", True)),
+                "balances": {k: str(v) for k, v in balances.items()},
+                "public_wallet": body.get("public_wallet"),
+                "network": body.get("network"),
+                "chain_id": body.get("chain_id"),
+                "token_contract": body.get("token_contract") or body.get("token_mint"),
+            }
+
+        extra_status.append(_extra_wallet_status)
+
+    def _supervisor_status() -> dict[str, Any] | None:
+        import httpx
+
+        try:
+            response = httpx.get(supervisor_url.rstrip("/") + "/v1/status", timeout=2.0)
+            body = response.json()
+        except Exception:
+            return None
+        return body if isinstance(body, dict) else None
+
+    from aea.signer.live_gate import inspect_live_spend_gate
+
+    live_gate = inspect_live_spend_gate(
+        os.environ.get("AEA_LIVE_SPEND_FILE"),
+        operator_intent=os.environ.get("AEA_LIVE_WALLET"),
+    )
+
+    configured_solana = {
+        "network": os.environ.get("AEA_SOLANA_NETWORK"),
+        "public_wallet": os.environ.get("AEA_SOLANA_PUBLIC_WALLET"),
+        "token_mint": os.environ.get("AEA_SOLANA_TOKEN_MINT"),
+    }
+    configured_solana = {k: v for k, v in configured_solana.items() if v}
+    configured_evm = {
+        "network": os.environ.get("AEA_EVM_NETWORK"),
+        "public_wallet": os.environ.get("AEA_EVM_PUBLIC_WALLET"),
+        "token_contract": os.environ.get("AEA_EVM_USDC_CONTRACT"),
+        "chain_id": os.environ.get("AEA_EVM_CHAIN_ID"),
+    }
+    if configured_evm.get("chain_id"):
+        try:
+            configured_evm["chain_id"] = int(configured_evm["chain_id"])
+        except (TypeError, ValueError):
+            configured_evm.pop("chain_id", None)
+    configured_evm = {k: v for k, v in configured_evm.items() if v}
+
     return create_app(
         model_token=model,
         freeze_path=freeze,
         control_token=control,
         marketplace=marketplace,
         marketplace_token=market_token,
+        observability_token=observability,
         ledger=ledger,
         payment=payment,
         wallet_get_tx=_wallet_tx,
         wallet_balances=_wallet_balances,
+        wallet_status=_wallet_status,
+        extra_wallet_status=tuple(extra_status),
+        supervisor_status=_supervisor_status,
+        live_gate=live_gate,
+        configured_solana=configured_solana,
+        configured_evm=configured_evm,
     )
 
 

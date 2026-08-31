@@ -17,3 +17,5 @@ services:
       HERMES_UID: ${HERMES_UID}
       HERMES_GID: ${HERMES_GID}
       HERMES_WRITE_SAFE_ROOT: /opt/data:/workspace
+      AEA_CONTROL_URL: http://127.0.0.1:18700
+      AEA_OBSERVABILITY_TOKEN_FILE: /opt/data/aea/observability.token

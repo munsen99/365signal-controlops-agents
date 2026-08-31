@@ -24,6 +24,7 @@ services:
     environment:
       AEA_CONTROL_TOKEN_FILE: /secrets/tokens/control
       AEA_MODEL_TOKEN_FILE: /secrets/tokens/model
+      AEA_OBSERVABILITY_TOKEN_FILE: /secrets/tokens/observability
       AEA_WALLET_READ_TOKEN_FILE: /secrets/tokens/wallet_read
       AEA_MARKETPLACE_TOKEN_FILE: /secrets/tokens/marketplace
       AEA_POSTGRES_PASSWORD_FILE: /secrets/postgres_password
@@ -31,10 +32,12 @@ services:
       AEA_POLICY_URL: http://127.0.0.1:18701
       AEA_WALLET_URL: http://127.0.0.1:18704
       AEA_MARKETPLACE_URL: http://127.0.0.1:18705
+      AEA_SUPERVISOR_URL: http://127.0.0.1:18703
       AEA_BIND: 127.0.0.1:18700
     volumes:
       - ${AEA_SECRETS:-/home/proteu5/.config/controlops/economic}/tokens/control:/secrets/tokens/control:ro
       - ${AEA_SECRETS:-/home/proteu5/.config/controlops/economic}/tokens/model:/secrets/tokens/model:ro
+      - ${AEA_SECRETS:-/home/proteu5/.config/controlops/economic}/tokens/observability:/secrets/tokens/observability:ro
       - ${AEA_SECRETS:-/home/proteu5/.config/controlops/economic}/tokens/wallet_read:/secrets/tokens/wallet_read:ro
       - ${AEA_SECRETS:-/home/proteu5/.config/controlops/economic}/tokens/marketplace:/secrets/tokens/marketplace:ro
       - ${AEA_SECRETS:-/home/proteu5/.config/controlops/economic}/postgres_password:/secrets/postgres_password:ro

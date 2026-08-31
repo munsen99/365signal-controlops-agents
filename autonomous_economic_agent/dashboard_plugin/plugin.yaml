@@ -1,0 +1,5 @@
+name: aea
+version: 0.1.0
+description: "Read-only Autonomous Economic Agent dashboard. No spend or supervisor controls."
+author: 365signal
+kind: standalone

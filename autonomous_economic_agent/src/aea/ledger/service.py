@@ -335,7 +335,7 @@ class LedgerService:
         ).fetchone()
         return int(row["n"]) if row else 0
 
-    def daily_spend_usdc(self) -> Decimal:
+    def daily_spend_usdc(self, *, excluding_request_id: UUID | None = None) -> Decimal:
         row = self._conn.execute(
             """
             SELECT COALESCE(SUM(amount), 0) AS spent
@@ -344,7 +344,9 @@ class LedgerService:
                AND transaction_reference IS NOT NULL
                AND asset = 'USDC'
                AND requested_at >= (date_trunc('day', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC')
+               AND (%s::uuid IS NULL OR request_id <> %s)
             """
+            , (excluding_request_id, excluding_request_id)
         ).fetchone()
         return _dec(row["spent"]) if row else Decimal("0")
 
@@ -696,6 +698,27 @@ class LedgerService:
     def record_chain_evidence(self, req: ChainEvidenceCreate) -> dict[str, Any]:
         """Persist verified chain-specific fields exactly once; never interprets a hash as settlement."""
         def inner() -> dict[str, Any]:
+            def reconcile_fee() -> None:
+                fee = Decimal(req.fee_wei) / Decimal(1_000_000_000_000_000_000)
+                costs = self._conn.execute(
+                    """SELECT cost_id, amount FROM economic_costs
+                         WHERE payment_request_id=%s AND category='network_fee'
+                           AND asset='ETH' FOR UPDATE""",
+                    (req.payment_request_id,),
+                ).fetchall()
+                if len(costs) > 1:
+                    raise LedgerError(HttpCode.CONFLICT, "EVM evidence requires exactly one fee row")
+                prior_amount = _dec(costs[0]["amount"]) if costs else fee
+                if costs and prior_amount != fee:
+                    self._conn.execute("UPDATE economic_costs SET amount=%s WHERE cost_id=%s",
+                                       (fee, costs[0]["cost_id"]))
+                    self._adjust_balance("ETH", prior_amount - fee)
+                    self._audit("evm_fee_precision_reconciled", {
+                        "payment_request_id": str(req.payment_request_id),
+                        "transaction_hash": req.transaction_hash.lower(),
+                        "prior_amount": format(prior_amount, "f"),
+                        "exact_amount": format(fee, "f"), "fee_wei": req.fee_wei,
+                    })
             existing = self._conn.execute(
                 "SELECT * FROM chain_transaction_evidence WHERE payment_request_id = %s",
                 (req.payment_request_id,),
@@ -703,25 +726,47 @@ class LedgerService:
             fingerprint = req.model_dump(mode="python")
             if existing is not None:
                 prior = {key: existing[key] for key in fingerprint}
-                for key in ("chain_id", "block_number", "gas_used", "effective_gas_price_wei", "fee_wei"):
+                for key in ("chain_id", "block_number", "gas_used", "effective_gas_price_wei",
+                            "l1_fee_wei", "fee_wei"):
                     prior[key] = int(prior[key])
                 prior["fee_usdc_snapshot"] = format_amount(_dec(prior["fee_usdc_snapshot"]))
                 if prior != fingerprint:
-                    raise LedgerError(HttpCode.IDEMPOTENCY_CONFLICT)
+                    legacy = dict(prior)
+                    legacy["l1_fee_wei"] = req.l1_fee_wei
+                    legacy["fee_wei"] = req.fee_wei
+                    execution_fee = prior["gas_used"] * prior["effective_gas_price_wei"]
+                    if (legacy != fingerprint or prior["l1_fee_wei"] != 0
+                            or prior["fee_wei"] != execution_fee
+                            or req.fee_wei != execution_fee + req.l1_fee_wei):
+                        raise LedgerError(HttpCode.IDEMPOTENCY_CONFLICT)
+                    existing = self._conn.execute(
+                        """UPDATE chain_transaction_evidence
+                              SET l1_fee_wei=%s, fee_wei=%s
+                            WHERE payment_request_id=%s RETURNING *""",
+                        (req.l1_fee_wei, req.fee_wei, req.payment_request_id),
+                    ).fetchone()
+                    reconcile_fee()
                 return {**dict(existing), "replay": True}
             row = self._conn.execute(
                 """INSERT INTO chain_transaction_evidence
                    (payment_request_id, rail, network, chain_id, transaction_hash, block_number,
-                    token_contract, gas_used, effective_gas_price_wei, fee_wei,
+                    token_contract, gas_used, effective_gas_price_wei, l1_fee_wei, fee_wei,
                     fee_usdc_snapshot, fee_rate_source, fee_rate_observed_at)
-                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *""",
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *""",
                 (req.payment_request_id, req.rail, req.network, req.chain_id, req.transaction_hash.lower(),
                  req.block_number, req.token_contract, req.gas_used,
-                 req.effective_gas_price_wei, req.fee_wei, req.fee_usdc_snapshot,
+                 req.effective_gas_price_wei, req.l1_fee_wei, req.fee_wei, req.fee_usdc_snapshot,
                  req.fee_rate_source, req.fee_rate_observed_at),
             ).fetchone()
+            reconcile_fee()
             return {**dict(row), "replay": False}
         return self._savepoint(inner)
+
+    def has_chain_evidence(self, payment_request_id: UUID) -> bool:
+        return self._conn.execute(
+            "SELECT 1 FROM chain_transaction_evidence WHERE payment_request_id=%s",
+            (payment_request_id,),
+        ).fetchone() is not None
 
     def record_verified_revenue(self, req: RevenueCreate) -> dict[str, Any]:
         def inner() -> dict[str, Any]:
@@ -1141,10 +1186,10 @@ class LedgerService:
                 {
                     "agent_id": r["agent_id"],
                     "asset": r["asset"],
-                    "opening_balance": format_amount(_dec(r["opening_balance"])),
-                    "ledger_balance": format_amount(_dec(r["ledger_balance"])),
-                    "reconstructed_balance": format_amount(_dec(r["reconstructed_balance"])),
-                    "delta": format_amount(_dec(r["delta"])),
+                    "opening_balance": format_asset_amount(_dec(r["opening_balance"]), r["asset"]),
+                    "ledger_balance": format_asset_amount(_dec(r["ledger_balance"]), r["asset"]),
+                    "reconstructed_balance": format_asset_amount(_dec(r["reconstructed_balance"]), r["asset"]),
+                    "delta": format_asset_amount(_dec(r["delta"]), r["asset"]),
                 }
             )
         return out
@@ -1198,3 +1243,184 @@ class LedgerService:
         if row is None:
             raise LedgerError(HttpCode.NOT_FOUND)
         return dict(row)
+
+    def current_policy(self) -> dict[str, Any] | None:
+        row = self._conn.execute(
+            """
+            SELECT policy_version, policy_hash, is_current
+              FROM policy_versions
+             WHERE is_current
+            """
+        ).fetchone()
+        return None if row is None else dict(row)
+
+    def observability_economics(self) -> dict[str, str | None]:
+        """Durable economics for the dashboard. Opening capital is not revenue."""
+        accounts = {
+            r["asset"]: r
+            for r in self._conn.execute(
+                """
+                SELECT asset, opening_balance, current_balance
+                  FROM agent_accounts
+                 WHERE agent_id = %s
+                """,
+                (self._agent_id,),
+            ).fetchall()
+        }
+        usdc = accounts.get("USDC")
+        sol = accounts.get("SOL")
+        eth = accounts.get("ETH")
+        pnl = self._conn.execute(
+            """
+            SELECT revenue_usdc, cost_usdc, realised_pnl_usdc
+              FROM v_cumulative_realised_pnl
+             WHERE agent_id = %s
+            """,
+            (self._agent_id,),
+        ).fetchone()
+        car = self._conn.execute("SELECT * FROM v_capital_at_risk").fetchone()
+        daily = self.daily_spend_usdc()
+        car_usdc = _dec(car["approved_unsettled_outflow"]) if car else Decimal("0")
+        return {
+            "opening_capital_usdc": format_amount(_dec(usdc["opening_balance"])) if usdc else "0.000000",
+            "available_capital_usdc": format_amount(_dec(usdc["current_balance"])) if usdc else "0.000000",
+            "verified_revenue_usdc": format_amount(_dec(pnl["revenue_usdc"])) if pnl else "0.000000",
+            "attributable_costs_usdc": format_amount(_dec(pnl["cost_usdc"])) if pnl else "0.000000",
+            "realized_pnl_usdc": format_amount(_dec(pnl["realised_pnl_usdc"])) if pnl else "0.000000",
+            "daily_spend_usdc": format_amount(daily),
+            "capital_at_risk_usdc": format_amount(car_usdc),
+            "fee_reserve_sol": format_amount(_dec(sol["current_balance"])) if sol else None,
+            "fee_reserve_eth": format_asset_amount(_dec(eth["current_balance"]), "ETH") if eth else None,
+        }
+
+    def observability_reconciliation(self) -> dict[str, Any]:
+        rows = self.ledger_reconciliation()
+        mismatches: list[dict[str, str]] = []
+        for row in rows:
+            if _dec(row["delta"]) != Decimal("0"):
+                mismatches.append(
+                    {
+                        "asset": row["asset"],
+                        "reason": "ledger_internal_delta",
+                        "delta": row["delta"],
+                        "ledger": row["ledger_balance"],
+                        "reconstructed": row["reconstructed_balance"],
+                    }
+                )
+        return {"ok": not mismatches, "rows": rows, "mismatches": mismatches}
+
+    def current_or_last_activity(self) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+        job = self._conn.execute(
+            """
+            SELECT j.*, o.external_reference, o.source, o.expected_cost AS opp_cost,
+                   o.expected_margin, o.description_hash, o.decision,
+                   o.opportunity_id AS opp_id
+              FROM jobs j
+              JOIN opportunities o ON o.opportunity_id = j.opportunity_id
+             WHERE j.agent_id = %s
+             ORDER BY COALESCE(j.submitted_at, j.accepted_at) DESC
+             LIMIT 1
+            """,
+            (self._agent_id,),
+        ).fetchone()
+        payment_state = None
+        job_out: dict[str, Any] | None = None
+        if job is not None:
+            job_out = dict(job)
+            pay = self._conn.execute(
+                """
+                SELECT policy_decision, transaction_reference
+                  FROM payment_requests
+                 WHERE job_id = %s
+                 ORDER BY requested_at DESC
+                 LIMIT 1
+                """,
+                (job["job_id"],),
+            ).fetchone()
+            if pay is None:
+                payment_state = "none"
+            elif pay["transaction_reference"]:
+                payment_state = "settled"
+            else:
+                payment_state = str(pay["policy_decision"])
+            job_out["payment_state"] = payment_state
+            job_out["expected_cost"] = job.get("opp_cost")
+            job_out["source"] = job.get("source")
+        opp = None
+        if job is not None:
+            opp = self.get_opportunity(job["opportunity_id"])
+        else:
+            row = self._conn.execute(
+                """
+                SELECT * FROM opportunities
+                 WHERE agent_id = %s
+                 ORDER BY discovered_at DESC
+                 LIMIT 1
+                """,
+                (self._agent_id,),
+            ).fetchone()
+            opp = None if row is None else dict(row)
+        return job_out, opp
+
+    def recent_audit_events(self, *, limit: int = 20) -> list[dict[str, Any]]:
+        bound = max(1, min(int(limit), 20))
+        rows = self._conn.execute(
+            """
+            SELECT event_type, correlation_id, payload, created_at
+              FROM audit_events
+             WHERE agent_id = %s
+             ORDER BY created_at DESC
+             LIMIT %s
+            """,
+            (self._agent_id, bound),
+        ).fetchall()
+        out = []
+        for row in rows:
+            payload = row["payload"] if isinstance(row["payload"], dict) else {}
+            out.append(
+                {
+                    "event_type": row["event_type"],
+                    "correlation_id": row["correlation_id"],
+                    "payload": _scrub(payload),
+                    "created_at": row["created_at"],
+                }
+            )
+        return out
+
+    def last_settlements(self) -> dict[str, dict[str, str] | None]:
+        evm_row = self._conn.execute(
+            """
+            SELECT e.transaction_hash, e.network, e.rail, pr.policy_decision,
+                   pr.transaction_reference
+              FROM chain_transaction_evidence e
+              JOIN payment_requests pr ON pr.request_id = e.payment_request_id
+             ORDER BY e.created_at DESC
+             LIMIT 1
+            """
+        ).fetchone()
+        sol_row = self._conn.execute(
+            """
+            SELECT pr.transaction_reference, pr.policy_decision, pr.asset
+              FROM payment_requests pr
+              LEFT JOIN chain_transaction_evidence e
+                ON e.payment_request_id = pr.request_id
+             WHERE pr.transaction_reference IS NOT NULL
+               AND e.evidence_id IS NULL
+               AND pr.transaction_reference NOT LIKE '0x%%'
+             ORDER BY COALESCE(pr.approved_at, pr.requested_at) DESC
+             LIMIT 1
+            """
+        ).fetchone()
+        evm = None
+        if evm_row is not None:
+            evm = {
+                "ref": str(evm_row["transaction_hash"]),
+                "status": "confirmed" if evm_row["transaction_reference"] else str(evm_row["policy_decision"]),
+            }
+        sol = None
+        if sol_row is not None:
+            sol = {
+                "ref": str(sol_row["transaction_reference"]),
+                "status": "settled" if sol_row["policy_decision"] == "approved" else str(sol_row["policy_decision"]),
+            }
+        return {"sol": sol, "evm": evm}
