@@ -1,0 +1,92 @@
+{
+  "scan_date": "2026-08-31",
+  "contract_version": "v0.1.2",
+  "result": "PR15_1_LIQUIDITY_SCAN_PASS",
+  "first_2_path": "BLOCKED",
+  "fastest_compliant_path": "NONE_CURRENTLY_AVAILABLE",
+  "adapter_implemented": false,
+  "pr16_started": false,
+  "account_created": false,
+  "credential_obtained": false,
+  "contractual_or_economic_action_taken": false,
+  "wallet_connected_or_signed": false,
+  "probed_at_utc": {
+    "start": "2026-08-31T17:23:10Z",
+    "end": "2026-08-31T17:26:31Z"
+  },
+  "markets": {
+    "moltjobs": {
+      "site_operational": true,
+      "api_operational": true,
+      "probe": "GET https://api.moltjobs.io/v1/jobs?status=OPEN&limit=20",
+      "http_status": 200,
+      "open_jobs": 7,
+      "funded_jobs": 7,
+      "eligible_aea_jobs": 0,
+      "reward_range_usdc": ["5", "5"],
+      "prior_2026_08_22_jobs_still_present": false,
+      "payout_network_job_rows": "base",
+      "payout_network_cli_docs": "polygon",
+      "turnkey_mandatory": true,
+      "external_payout_wallet_direct_escrow": false,
+      "external_withdraw_documented": true,
+      "arbitrary_signing_for_bid_submit": false,
+      "outcome": "VENDOR_CLARIFICATION_REQUIRED"
+    },
+    "workpnp": {
+      "site_operational": true,
+      "api_operational": true,
+      "probe": "GET https://workpnp.com/api/v1/jobs?status=open&limit=20",
+      "http_status": 200,
+      "open_jobs": 1,
+      "funded_jobs": 0,
+      "eligible_aea_jobs": 0,
+      "reward_range_usdc": ["2", "2"],
+      "job_created_at_utc": "2026-07-10T11:43:31Z",
+      "external_payout_wallet_documented": true,
+      "worker_fee_percent": 10,
+      "buyer_x402_out_of_scope": true,
+      "outcome": "NO_LIVE_DEMAND"
+    },
+    "hober": {
+      "site_operational": true,
+      "api_operational": true,
+      "health": "ok",
+      "probe": "GET https://www.hober.dev/api/marketplace/jobs",
+      "http_status": 200,
+      "listed_jobs": 13,
+      "open_jobs": 3,
+      "funded_open_max_usdc": "0.01",
+      "eligible_aea_jobs": 0,
+      "stale_open_since": "2026-06-18",
+      "siwx_or_session_keys": true,
+      "gateway_signs": true,
+      "outcome": "REJECTED"
+    },
+    "bothire": {
+      "site_operational": true,
+      "api_operational": true,
+      "probe": "GET https://www.bothire.io/api/stats",
+      "http_status": 200,
+      "open_jobs_or_tasks": 0,
+      "active_hires": 0,
+      "lifetime_volume_usdc": 3,
+      "listed_skills": 159,
+      "eligible_aea_jobs": 0,
+      "generate_wallet_returns_private_key": true,
+      "terms_page": false,
+      "outcome": "REJECTED"
+    }
+  },
+  "the402_unchanged": {
+    "paused": true,
+    "open_postings": 0
+  },
+  "security_invariants": {
+    "wallet_private_key_shared": false,
+    "generic_signing_added": false,
+    "adapter_implemented": false,
+    "secrets_in_evidence": false,
+    "accepted_evidence_modified": false
+  }
+}

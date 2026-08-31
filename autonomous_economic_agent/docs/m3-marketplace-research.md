@@ -388,3 +388,139 @@ These do **not** fail the architectural gates, but they block operator onboardin
 `src/aea/marketplace/live/the402.py` implements `MarketplaceAdapter` for the provider workflow only. `AEA_ENABLED_ADAPTERS` remains `mock` by default. `the402` loads only when both `AEA_ENABLED_ADAPTERS` lists it **and** `AEA_THE402_ENABLED` is truthy. Live HTTPS additionally requires `AEA_THE402_LIVE_HTTP=1` and an operator API-key file.
 
 See `docs/the402-live-adapter.md` for credentials, payout wallet, job envelope, state mapping, webhook verification, idempotency, and PR16 preconditions.
+
+---
+
+## PR15.1 Multi-Market Liquidity Scan — 2026-08-31
+
+Scan outcome: **PR15.1 LIQUIDITY SCAN: PASS**
+
+First-$2 path: **BLOCKED**
+
+**FASTEST COMPLIANT PATH TO FIRST $2: NONE CURRENTLY AVAILABLE**
+
+This section preserves the original blocked selection, the M2b the402 reassessment, and the 2026-08-31 the402 adapter implementation. It is research/read-only. No account was created, no terms were accepted, no bid/accept/submit was sent, no wallet was connected or signed, and no funds were moved. No new marketplace adapter was implemented. PR16 was not started.
+
+Primary question for each market: can the AEA legitimately find, acquire, perform, and get paid for at least one small job *today* using the accepted Solana/EVM rails and security model? **No candidate currently satisfies that question.**
+
+Probes were recorded at **2026-08-31T17:23:10Z–2026-08-31T17:26:31Z**.
+
+### Ranking
+
+Technical compatibility and current liquidity are scored separately. An empty but elegant board cannot win.
+
+| Rank | Candidate | Technical compatibility | Liquidity / first $2 | Outcome |
+|---:|---|---|---|---|
+| 1 | workpnp | Highest among this set: API-key worker path, documented external Base payout wallet, no AEA signing for provider work | 1 open $2 job, **unfunded**, GitHub-PR outreach (ineligible); net after 10% fee would be $1.80 | **NO LIVE DEMAND** |
+| 2 | MoltJobs | API-key discovery/bid/submit exists; escrow is Base canonical USDC with tx hashes; **Turnkey wallet is still mandatory for earnings**; CLI still says Polygon | 7 OPEN jobs, all $5, all escrowed today; 0 fit the AEA envelope (durable public URL hosting required). Prior 2026-08-22 three-job set is gone | **VENDOR CLARIFICATION REQUIRED** |
+| 3 | Hober | Inference gateway + job board; SIWX wallet auth; scoped session keypairs; “gateway settles with its own keys”; public job list has stale $0–$0.01 already-assigned rows | 3 OPEN rows, max $0.01, last activity 2026-06-18–06-23; requirements empty | **REJECTED** |
+| 4 | BotHire | Machine-first catalog; register accepts a wallet address, but official skill also `POST /api/bots/generate-wallet` returning a **private key**; no Terms page | 0 tasks, 0 active hires, lifetime volume $3 USDC; 159 listed skills are supply, not demand | **REJECTED** |
+
+the402 remains paused with zero open postings and is not re-selected.
+
+No additional marketplace was added: none was both currently operational *and* materially better than these four on the first-$2 question.
+
+### MoltJobs
+
+**Can the AEA get paid for one small eligible job today?** No.
+
+Live probe `GET https://api.moltjobs.io/v1/jobs?status=OPEN&limit=20` at **2026-08-31T17:23:10Z**: HTTP 200, **7 records**, `meta.nextCursor=null`. Public rate-limit header `x-ratelimit-limit-public: 60`. Platform stats `GET /v1/stats`: `totalJobs=52`, `totalCompleted=3`, `totalAgents=222`, `totalVolumeUsdc=6`, `escrowedUsdc=46`.
+
+| Field | Observation |
+|---|---|
+| Open jobs | 7 |
+| Funded | **7** — each row has `paymentProvider=ON_CHAIN_USDC`, `chainId=8453`, `tokenAddress=0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`, and a 66-char `escrowTxHash` |
+| Reward range | all `budgetUsdc=5` |
+| Age | created 2026-08-31T16:14:53Z–17:03:36Z; deadlines 2026-09-02 / 2026-09-03 |
+| Genuine vs demo | **Fact:** on-chain escrow fields present. **Inference:** one poster (`posterId` `a00a11e9-…`) published a burst of `custom-v1` $5 jobs in ~50 minutes; this is concentrated demand, not a broad board. The three OPEN jobs seen on 2026-08-22 are **not** in this payload |
+| Eligible AEA envelope | **0.** Every job requires `outputData.url` to return HTTPS 200 and stay live (hours 168–720). The AEA has no hosting rail and rejects generic URL fetch/upload. Several tasks are research-like; one requires GitHub issue hunting for *coding* work; one requires actually registering and bidding then publishing a walkthrough |
+
+Turnkey / chain (revalidated):
+
+- **Fact:** wallet blog still says registration “automatically provisions a Turnkey-managed wallet on the Base network”; keys live in HSMs; API key is not the wallet key; `POST /agents/:id/wallet/withdraw` sends USDC to an external Base address; MCP `withdraw_funds` is documented as Turnkey-signed.
+- **Fact:** CLI docs still say “Wallets are Turnkey-managed **Polygon** addresses that hold USDC.” Live job rows say Base/`8453`/canonical USDC. **Unresolved documentation conflict remains.**
+- **Fact:** Turnkey is identity/provisioning, custody, payout destination, *and* the signer for withdrawals — not merely UI. Direct escrow to the AEA Base address is **not** documented.
+- **Inference:** even after M2b, treating the Turnkey wallet as the AEA wallet recreates a second debit authority. Sweeping via marketplace API credentials is a wallet mutation and must not be a model tool.
+
+Other technical: public `GET /v1/jobs`; bid `POST /v1/jobs/:id/bids` with Bearer/`X-Api-Key`; start/submit documented; states ASSIGNED → IN_PROGRESS → IN_REVIEW → COMPLETED; 10 free bids/month; 120 req/min documented (public probe showed 60/min). Arbitrary message/EIP-712/calldata/approvals are **not** required for the provider API path. Browser/CAPTCHA after onboarding: **unknown**. Human/org owner is mandatory (Terms 2026-08-02; skill.md email claim). Automation and AI agents: **permitted**, with accountable owner. KYC: blog says none for the agent wallet; **unverified** for the human claim. Provider fee: product says a success fee on escrowed jobs; exact bps **unverified** from the terms extract. Independent verification quality: **high** if escrow tx is observed on Base — but revenue would land in Turnkey first.
+
+Hard reject if used as-is: marketplace-controlled signing for withdraw; mandatory second wallet.
+
+### workpnp
+
+**Can the AEA get paid for one small eligible job today?** No.
+
+Site `https://workpnp.com/` HTTP 200 at **2026-08-31T17:23:45Z**. Public `GET https://workpnp.com/api/v1/jobs?status=open&limit=20` at **2026-08-31T17:24:24Z**: HTTP 200, **1 job**, `has_more=false`.
+
+| Field | Observation |
+|---|---|
+| Open jobs | 1 (`job_412n2v0mvb13s0jr`) |
+| Funded | **0.** Status `open`; funding is a later x402 step after bid accept. `pending_bids=3` |
+| Reward | `budget=2000000` atomic = **$2 USDC** |
+| Age | `created_at=1783683811` → **2026-07-10T11:43:31Z** (~52 days old) |
+| Genuine vs demo | Looks like a real outreach task from poster `openthomas`, not an empty stub. Stale relative to “today” |
+| Eligible AEA envelope | **0.** Work is “open a real pull request” on 2–3 GitHub awesome-lists — authenticated third-party write + outreach, forbidden |
+
+Technical (official `skill.md` / `rules.md` / `skill.json`):
+
+- Discovery: public GET `/api/v1/jobs`. Bid: `POST /jobs/:id/bids` with Bearer `wpnp_sk_…`. Deliver: `POST /jobs/:id/deliver` only when status is `funded` and wallet is set.
+- Registration: `POST /agents/register` (no auth) then **human email + one X post**; until claimed, browse/bid is allowed but **payouts are blocked**.
+- External payout wallet: **yes** — `PATCH /agents/me {"wallet_address":"0x…"}` on Base. No marketplace-generated private key in the worker path.
+- Buyer funding uses **x402** (EIP-3009). That is buyer-side and out of scope; the AEA as worker does not fund.
+- Signing: worker path is API-key only. No EIP-712/calldata/approvals documented for delivery.
+- Fee: **10% worker-side**; hiring free. A $2 job nets **$1.80**, below the $2 target even if eligible.
+- Auto-accept 72h after delivery. Rate limits 120 reads / 30 writes per minute (6 writes in first 24h).
+- Terms/autonomy: `rules.md` treats agents as the actors and holds “your human” accountable. No separate Provider Agreement found. Geographic/KYC: **unknown** beyond email+X claim. CAPTCHA: **unknown**.
+
+Closest future path if an eligible **funded** text job ≥ ~$2.23 gross appears: operator claim + payout wallet = AEA Base address. Not ready now.
+
+### Hober
+
+**Can the AEA get paid for one small eligible job today?** No.
+
+`GET https://api.hober.dev/health` **2026-08-31T17:23:39Z**: `{"status":"ok","version":"0.1.0"}`. `GET https://www.hober.dev/api/marketplace/jobs`: HTTP 200, `mock=false`, **13 rows** (10 COMPLETED, **3 OPEN**).
+
+OPEN rows: budgets **$0, $0.01, $0**; created 2026-06-18 to 2026-06-23; `requirementContent=null`; each already has a `providerWallet` assigned. These are stale on-chain job objects, not a bid-board of $2 text work. Two COMPLETED rows are explicitly `model=test-live-job`. Hunt UI redirects to `app.hober.dev` (auth). `GET /api/jobs` returned 401.
+
+Technical: docs are an **inference router** (API keys `hb_live_*`, SIWX wallet JWT, x402 per-call payment, “Delegation: scoped session keypairs”). llms.txt: “The gateway settles on-chain with its own keys. Agent code never signs a transaction.” Marketplace fee capped 10% on-chain; inference 5%. Terms (July 2026) cover routing on Solana and Base; they do not document a provider job envelope matching AEA text work.
+
+Hard issues: SIWX/session-key signing; gateway as signing authority; no eligible ≥$2 open work.
+
+**REJECTED** for adapter use.
+
+### BotHire
+
+**Can the AEA get paid for one small eligible job today?** No.
+
+Site and `https://www.bothire.io/skill.md` HTTP 200 at **2026-08-31T17:23:42Z**. `GET /api/stats`: `total_bots=22`, `total_skills=159`, `total_hires=4`, **`active_hires=0`**, **`total_tasks=0`**, `total_volume_usdc=3`. `/api/jobs` and `/api/tasks` 404. Skills search returns a **catalog of sellable skills** (video/image heavy), not open funded tasks. `/terms` and `/privacy` 404.
+
+Technical: machine-only framing; escrow on Base; 0% protocol fee advertised; 24h auto-refund. Register body includes `wallet_address` (external wallet *may* work). Official skill also documents `POST /api/bots/generate-wallet` returning **`private_key`**. That endpoint must not be used. Hiring/paying is a buyer x402/escrow path. No published Terms. Provider work is “list a skill and wait to be hired,” like the402 catalog, with **zero current hires**.
+
+**REJECTED** for first-$2 execution (no demand; private-key generation is a hard security fail if required).
+
+### First-$2 recommendation
+
+Do **not** implement another adapter. Do **not** start PR16.
+
+What would have to happen next, in order:
+
+1. A board must show at least one **funded**, envelope-eligible text job whose expected net is ≥ $2 after documented fees.
+2. If that board is **workpnp**: operator reviews rules, completes email+X claim, sets payout to `0x7fc8ACC21e601c488e6EE4eE39AD67d3ecA12a7e`, then a separate authorization can consider a provider adapter. Current $2 GitHub-PR job does not qualify.
+3. If that board is **MoltJobs**: vendor must document (a) Base not Polygon as production payout chain, (b) escrow/release **directly** to the AEA Base address **or** withdraw-disabled earnings with no API-key debit capability, (c) text deliverables that do not require AEA-operated public hosting. Until then, Turnkey remains a second signer.
+4. Re-check the402 only after the compliance pause lifts and open postings are non-zero.
+
+Until then: **FASTEST COMPLIANT PATH TO FIRST $2: NONE CURRENTLY AVAILABLE**.
+
+### PR15.1 sources and probes
+
+- MoltJobs Terms (updated 2026-08-02): https://moltjobs.io/terms
+- MoltJobs skill: https://moltjobs.io/skill.md
+- MoltJobs wallet blog: https://moltjobs.io/blog/agent-wallets-usdc-payments
+- MoltJobs CLI: https://moltjobs.io/docs/cli
+- MoltJobs jobs: `GET https://api.moltjobs.io/v1/jobs?status=OPEN&limit=20` (HTTP 200, 7 jobs)
+- MoltJobs stats: `GET https://api.moltjobs.io/v1/stats`
+- workpnp skill/rules/heartbeat/skill.json and `GET https://workpnp.com/api/v1/jobs?status=open&limit=20` (HTTP 200, 1 job)
+- Hober llms.txt, terms, health, `GET https://www.hober.dev/api/marketplace/jobs`
+- BotHire skill.md and `GET https://www.bothire.io/api/stats`
+
+Sanitized probe evidence: `tests/e2e/evidence/m3/pr15-1-liquidity-20260831/`.
