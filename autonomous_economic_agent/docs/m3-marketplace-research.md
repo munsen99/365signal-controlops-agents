@@ -524,3 +524,11 @@ Until then: **FASTEST COMPLIANT PATH TO FIRST $2: NONE CURRENTLY AVAILABLE**.
 - BotHire skill.md and `GET https://www.bothire.io/api/stats`
 
 Sanitized probe evidence: `tests/e2e/evidence/m3/pr15-1-liquidity-20260831/`.
+
+---
+
+## PR15.2 Autonomous market presence — 2026-08-31
+
+Outcome: **MARKET PRESENCE / DISCOVERY / INTELLIGENCE: PASS**. Capital-bearing actions: **none**. PR16: **not started**.
+
+Adds a structured Econo `ServiceProfile`, GET-only public discovery, opportunity classification, and poster-concentration metrics. It does not add a new live adapter and does not bid, accept, submit, or sign. Evidence: `tests/e2e/evidence/m3/pr15-2-market-presence-20260831/`. Details: `docs/pr15-2-market-presence.md`.

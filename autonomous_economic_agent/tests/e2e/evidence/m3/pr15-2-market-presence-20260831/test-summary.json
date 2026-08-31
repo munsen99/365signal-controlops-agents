@@ -1,0 +1,8 @@
+{
+  "focused_market_presence": "PASS",
+  "the402_and_marketplace_regression": "PASS",
+  "git_diff_check": "PASS",
+  "live_probe_methods": ["GET"],
+  "capital_bearing_actions": [],
+  "pr16_started": false
+}
