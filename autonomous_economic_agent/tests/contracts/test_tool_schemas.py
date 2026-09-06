@@ -61,6 +61,7 @@ def test_plugin_register_only_loops_implemented_tools() -> None:
     # register_tool(name=name, ...) inside the implemented allow-list loop.
     src = PLUGIN_PY.read_text(encoding="utf-8")
     assert "for name in CALLABLE_MODEL_TOOLS" in src
+    assert "override=name in READONLY_WEB_TOOLS" in src
     assert "signer" not in src.lower() or "AEA_SIGNER" not in src
     assert "ctx.register_tool" in src
     assert src.count("ctx.register_tool") == 1

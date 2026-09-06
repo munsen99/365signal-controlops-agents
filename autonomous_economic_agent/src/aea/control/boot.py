@@ -60,9 +60,16 @@ def validate_boot(
     cfg_text = profile_config.read_text(encoding="utf-8")
     cfg = yaml.safe_load(cfg_text)
     disabled = set(cfg["agent"]["disabled_toolsets"])
-    required = {"file", "terminal", "web", "process", "delegation", "memory", "cronjob"}
+    required = {"file", "terminal", "process", "delegation", "memory", "cronjob"}
     if not required <= disabled:
         raise BootError("profile config missing required disabled_toolsets")
+    # Generic Hermes web must not be an enabled platform toolset. Bounded
+    # web_search/web_extract come from the economic plugin. `web` is omitted
+    # from disabled_toolsets because Hermes subtracts those names globally.
+    for platform in ("cli", "api_server"):
+        toolsets = list((cfg.get("platform_toolsets") or {}).get(platform) or [])
+        if "web" in toolsets or "search" in toolsets or "browser" in toolsets:
+            raise BootError(f"profile platform_toolsets.{platform} must not enable generic web/browser")
     if cfg["plugins"]["enabled"] != ["economic-agent"]:
         raise BootError("profile must enable only economic-agent")
     platform_toolsets = cfg.get("platform_toolsets", {})

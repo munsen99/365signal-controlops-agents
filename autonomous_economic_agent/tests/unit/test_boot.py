@@ -54,8 +54,13 @@ def test_validate_boot_rejects_token_in_soul(tmp_path: Path) -> None:
 
 def test_open_question_1_disabled_toolsets_remain() -> None:
     text = PROFILE.read_text(encoding="utf-8")
-    assert "file" in text and "terminal" in text and "web" in text and "process" in text
+    assert "file" in text and "terminal" in text and "process" in text
     assert "Do not re-enable terminal" in text
+    cfg = yaml.safe_load(text)
+    disabled = set(cfg["agent"]["disabled_toolsets"])
+    assert {"file", "terminal", "process"} <= disabled
+    assert "web" not in (cfg.get("platform_toolsets") or {}).get("cli", [])
+    assert "browser" not in (cfg.get("platform_toolsets") or {}).get("cli", [])
 
 
 def test_validate_boot_rejects_unrestricted_api_server_toolsets(tmp_path: Path) -> None:

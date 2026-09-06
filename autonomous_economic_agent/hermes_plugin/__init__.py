@@ -509,4 +509,9 @@ def register(ctx: Any) -> None:
             handler=_handler_for(name),
             check_fn=control_plane_up,
             description=_SCHEMAS[name].get("description", ""),
+            # Built-in Hermes names web_search/web_extract are claimed by the
+            # generic `web` toolset. Override replaces the handler with this
+            # plugin's GET-only SSRF-closed implementation. The generic web
+            # toolset stays out of platform_toolsets.
+            override=name in READONLY_WEB_TOOLS,
         )

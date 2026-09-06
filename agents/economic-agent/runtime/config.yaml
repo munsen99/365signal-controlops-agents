@@ -5,9 +5,13 @@ model:
 plugins:
   enabled:
     - economic-agent
+  entries:
+    economic-agent:
+      # Replace built-in web_search/web_extract handlers with the bounded
+      # economic-plugin implementations. Does not enable the generic web toolset.
+      allow_tool_override: true
 agent:
   disabled_toolsets:
-    - browser
     - clarify
     - code_execution
     - computer_use
@@ -25,7 +29,6 @@ agent:
     - memory
     - process
     - project
-    - search
     - session_search
     - skills
     - spotify
@@ -35,7 +38,6 @@ agent:
     - video
     - video_gen
     - vision
-    - web
     - x_search
     - yuanbao
 compression:
@@ -59,7 +61,10 @@ session_reset:
 # environment only. It must never appear in this file, SOUL.md, or
 # run-input.yaml.
 #
-# Open Question 1 (PR8): file/terminal/web/process stay in disabled_toolsets.
-# Do not re-enable terminal or the generic Hermes `web` toolset. Read-only
-# web_search/web_extract are provided by the economic plugin with GET-only
-# SSRF controls. The plugin pre_tool_call allow-list is the fail-closed fallback.
+# Open Question 1 (PR8): file/terminal/process stay in disabled_toolsets.
+# Do not re-enable terminal. Do not put `web` or `browser` in platform_toolsets.
+# Hermes subtracts disabled toolset *names* globally: `web` includes
+# web_search/web_extract and `browser` includes web_search, so those toolsets
+# must not be disabled or the plugin's bounded research tools are stripped.
+# Generic Hermes web handlers are replaced via allow_tool_override.
+# Browser stays default-off and is denied by agent.yaml + pre_tool_call.

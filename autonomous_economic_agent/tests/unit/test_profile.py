@@ -23,7 +23,7 @@ COMPOSE_LINK = REPO_ROOT / "ops" / "compose.economic.yaml"
 COMPOSE_CANONICAL = REPO_ROOT / "autonomous_economic_agent" / "ops" / "compose.economic.yaml"
 ECONOMIC_CLI = REPO_ROOT / "scripts" / "economic"
 
-REQUIRED_DISABLED = {"file", "terminal", "web", "process"}
+REQUIRED_DISABLED = {"file", "terminal", "process"}
 
 FORBIDDEN_IN_RUN_INPUT = (
     "mock:job:",
@@ -42,8 +42,14 @@ def test_disabled_toolsets_include_file_terminal_web_process() -> None:
     cfg = yaml.safe_load(PROFILE.read_text(encoding="utf-8"))
     disabled = set(cfg["agent"]["disabled_toolsets"])
     assert REQUIRED_DISABLED <= disabled
+    assert "web" not in disabled
+    assert "search" not in disabled
+    assert "browser" not in disabled
     assert cfg["platform_toolsets"]["cli"] == ["economic"]
     assert cfg["platform_toolsets"]["api_server"] == ["economic"]
+    assert (cfg.get("plugins") or {}).get("entries", {}).get("economic-agent", {}).get(
+        "allow_tool_override"
+    ) is True
     assert cfg["plugins"]["enabled"] == ["economic-agent"]
     profile_text = PROFILE.read_text(encoding="utf-8")
     assert "AEA_MODEL_TOKEN" not in profile_text
