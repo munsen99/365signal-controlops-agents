@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import ast
+import importlib.util
+import sys
+import types
 from pathlib import Path
 
 import yaml
@@ -58,8 +61,6 @@ def test_plugin_has_no_generic_http_escape() -> None:
 
 
 def test_plugin_schemas_forbid_additional_properties() -> None:
-    import importlib.util
-
     spec = importlib.util.spec_from_file_location("economic_hermes_plugin", PLUGIN_PY)
     assert spec and spec.loader
     mod = importlib.util.module_from_spec(spec)
@@ -70,3 +71,81 @@ def test_plugin_schemas_forbid_additional_properties() -> None:
         assert schema["name"] == name
     assert set(mod._SCHEMAS) == set(NINE_TOOLS)
     assert mod._SCHEMAS["get_financial_state"]["parameters"]["properties"] == {}
+
+
+def test_plugin_registers_exactly_the_economic_toolset() -> None:
+    spec = importlib.util.spec_from_file_location("economic_hermes_plugin_register", PLUGIN_PY)
+    assert spec and spec.loader
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    class Context:
+        def __init__(self) -> None:
+            self.hooks: list[tuple[str, object]] = []
+            self.tools: list[dict] = []
+
+        def register_hook(self, name: str, handler: object) -> None:
+            self.hooks.append((name, handler))
+
+        def register_tool(self, **kwargs: object) -> None:
+            self.tools.append(kwargs)
+
+    ctx = Context()
+    mod.register(ctx)
+    assert [item["name"] for item in ctx.tools] == list(NINE_TOOLS)
+    assert {item["toolset"] for item in ctx.tools} == {"economic"}
+    assert not {"project_create", "project_list", "project_switch"} & {
+        item["name"] for item in ctx.tools
+    }
+    assert [name for name, _ in ctx.hooks] == ["pre_tool_call"]
+
+
+def test_plugin_resolves_profile_local_model_token_without_active_secret_scope(
+    monkeypatch, tmp_path: Path
+) -> None:
+    profile = tmp_path / "economic-agent"
+    plugin = profile / "plugins" / "economic-agent" / "__init__.py"
+    plugin.parent.mkdir(parents=True)
+    plugin.write_text(PLUGIN_PY.read_text(encoding="utf-8"), encoding="utf-8")
+    token_file = profile / ".aea-model-token"
+    token_file.write_text("profile-private-token\n", encoding="utf-8")
+
+    secret_scope = types.ModuleType("agent.secret_scope")
+    secret_scope.get_secret = lambda name, default="": default
+    agent = types.ModuleType("agent")
+    agent.secret_scope = secret_scope
+    monkeypatch.setitem(sys.modules, "agent", agent)
+    monkeypatch.setitem(sys.modules, "agent.secret_scope", secret_scope)
+    monkeypatch.delenv("AEA_MODEL_TOKEN", raising=False)
+    monkeypatch.delenv("AEA_MODEL_TOKEN_FILE", raising=False)
+
+    spec = importlib.util.spec_from_file_location("installed_economic_plugin", plugin)
+    assert spec and spec.loader
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    assert mod._model_token() == "profile-private-token"
+
+
+def test_plugin_profile_local_model_token_rejects_symlink(monkeypatch, tmp_path: Path) -> None:
+    profile = tmp_path / "economic-agent"
+    plugin = profile / "plugins" / "economic-agent" / "__init__.py"
+    plugin.parent.mkdir(parents=True)
+    plugin.write_text(PLUGIN_PY.read_text(encoding="utf-8"), encoding="utf-8")
+    source = tmp_path / "token"
+    source.write_text("must-not-load\n", encoding="utf-8")
+    (profile / ".aea-model-token").symlink_to(source)
+
+    secret_scope = types.ModuleType("agent.secret_scope")
+    secret_scope.get_secret = lambda name, default="": default
+    agent = types.ModuleType("agent")
+    agent.secret_scope = secret_scope
+    monkeypatch.setitem(sys.modules, "agent", agent)
+    monkeypatch.setitem(sys.modules, "agent.secret_scope", secret_scope)
+    monkeypatch.delenv("AEA_MODEL_TOKEN", raising=False)
+    monkeypatch.delenv("AEA_MODEL_TOKEN_FILE", raising=False)
+
+    spec = importlib.util.spec_from_file_location("symlinked_token_plugin", plugin)
+    assert spec and spec.loader
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    assert mod._model_token() == ""

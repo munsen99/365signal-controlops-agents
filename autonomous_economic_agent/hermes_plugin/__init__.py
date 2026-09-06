@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import os
 import uuid
+from pathlib import Path
 from typing import Any
 from urllib.error import URLError
 from urllib.request import Request, urlopen
@@ -25,7 +26,7 @@ NINE_TOOLS: tuple[str, ...] = (
     "record_decision",
 )
 
-CONTROL_URL = os.environ.get("AEA_CONTROL_URL", "http://127.0.0.1:18700")
+DEFAULT_CONTROL_URL = "http://127.0.0.1:18700"
 
 _SCHEMAS: dict[str, dict[str, Any]] = {
     "find_jobs": {
@@ -180,13 +181,41 @@ _SCHEMAS: dict[str, dict[str, Any]] = {
 _SCHEMA_PROPS = {name: set(schema["parameters"].get("properties", {})) for name, schema in _SCHEMAS.items()}
 
 
+def _runtime_value(name: str, default: str = "") -> str:
+    """Read profile-scoped Hermes configuration without cross-profile leakage."""
+    try:
+        from agent.secret_scope import get_secret
+    except ImportError:
+        return os.environ.get(name, default)
+    return get_secret(name, default) or default
+
+
+def _control_url() -> str:
+    return _runtime_value("AEA_CONTROL_URL", DEFAULT_CONTROL_URL).rstrip("/")
+
+
 def _model_token() -> str:
-    token = os.environ.get("AEA_MODEL_TOKEN", "")
+    token = _runtime_value("AEA_MODEL_TOKEN")
     if not token:
-        path = os.environ.get("AEA_MODEL_TOKEN_FILE")
-        if path:
-            with open(path, encoding="utf-8") as handle:
-                token = handle.read().rstrip("\n")
+        path = _runtime_value("AEA_MODEL_TOKEN_FILE")
+        candidates = [Path(path)] if path else []
+        # A multiplexed Hermes UI can invoke a profile plugin without the
+        # profile's secret-scope context being active in the worker thread.
+        # Installed plugins are profile-local, so resolve the private bearer
+        # beside that profile as a fail-closed fallback.  This path is never
+        # model-visible and does not grant any additional authority.
+        plugin_path = Path(__file__).resolve()
+        if len(plugin_path.parents) >= 3:
+            candidates.append(plugin_path.parents[2] / ".aea-model-token")
+        for candidate in candidates:
+            try:
+                if candidate.is_symlink() or not candidate.is_file():
+                    continue
+                token = candidate.read_text(encoding="utf-8").rstrip("\n")
+            except (OSError, UnicodeError):
+                continue
+            if token:
+                break
     return token
 
 
@@ -224,7 +253,7 @@ def _post_tool(name: str, body: dict[str, Any]) -> dict[str, Any]:
         headers["X-AEA-Idempotency-Key"] = str(body["idempotency_key"])
     data = json.dumps(body).encode("utf-8")
     req = Request(
-        f"{CONTROL_URL.rstrip('/')}/v1/tools/{name}",
+        f"{_control_url()}/v1/tools/{name}",
         data=data,
         headers=headers,
         method="POST",
@@ -274,7 +303,7 @@ def on_pre_tool_call(tool_name: str = "", args: dict | None = None, **kwargs: An
 
 
 def control_plane_up() -> bool:
-    url = f"{CONTROL_URL.rstrip('/')}/health"
+    url = f"{_control_url()}/health"
     try:
         with urlopen(url, timeout=2) as resp:
             return 200 <= resp.status < 300
