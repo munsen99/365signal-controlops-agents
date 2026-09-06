@@ -92,6 +92,74 @@ class RecordDecisionRequest(AeaBaseModel):
     input_summary: str | None = Field(default=None, max_length=2000)
 
 
+class ResearchOpportunitiesRequest(AeaBaseModel):
+    query: str = Field(min_length=3, max_length=200)
+    limit: int = Field(default=10, ge=1, le=10)
+
+
+class DiscoverCounterpartiesRequest(AeaBaseModel):
+    query: str = Field(default="legitimate bounded digital work", min_length=3, max_length=200)
+    limit: int = Field(default=10, ge=1, le=10)
+
+
+MessageIntent = Literal[
+    "ask_work_available",
+    "ask_task_details",
+    "offer_bounded_capability",
+    "propose_non_binding_collaboration",
+    "ask_settlement_requirements",
+    "negotiate_non_binding_terms",
+    "respond_to_inbound",
+    "request_clarification",
+]
+MessageChannel = Literal["marketplace_api", "agent_protocol"]
+
+
+class SendMessageRequest(AeaBaseModel):
+    counterparty_id: str = Field(min_length=3, max_length=200)
+    channel: MessageChannel
+    intent: MessageIntent
+    message: str = Field(min_length=10, max_length=500)
+    idempotency_key: str = Field(min_length=8, max_length=128)
+
+
+class GetCounterpartyProfileRequest(AeaBaseModel):
+    counterparty_id: str = Field(min_length=3, max_length=200)
+
+
+class PostServiceOfferRequest(AeaBaseModel):
+    marketplace: str = Field(default="local", min_length=3, max_length=64)
+    service_id: str | None = Field(default=None, min_length=3, max_length=64)
+    idempotency_key: str = Field(min_length=8, max_length=128)
+
+
+class ReadMessagesRequest(AeaBaseModel):
+    counterparty_id: str | None = Field(default=None, min_length=3, max_length=200)
+    conversation_id: str | None = Field(default=None, min_length=36, max_length=36)
+    limit: int = Field(default=10, ge=1, le=20)
+
+
+class FollowUpMessageRequest(AeaBaseModel):
+    conversation_id: str = Field(min_length=36, max_length=36)
+    message: str = Field(min_length=10, max_length=500)
+    idempotency_key: str = Field(min_length=8, max_length=128)
+
+
+class ProposeCollaborationRequest(AeaBaseModel):
+    counterparty_id: str = Field(min_length=3, max_length=200)
+    channel: MessageChannel = "marketplace_api"
+    proposal: str = Field(min_length=10, max_length=500)
+    idempotency_key: str = Field(min_length=8, max_length=128)
+
+
+class GetMarketStatusRequest(AeaBaseModel):
+    marketplace: str | None = Field(default=None, min_length=3, max_length=64)
+
+
+class ListActiveConversationsRequest(AeaBaseModel):
+    limit: int = Field(default=10, ge=1, le=20)
+
+
 TOOL_MODELS = {
     "find_jobs": FindJobsRequest,
     "evaluate_job": EvaluateJobRequest,
@@ -102,4 +170,14 @@ TOOL_MODELS = {
     "request_payment": RequestPaymentRequest,
     "get_financial_state": GetFinancialStateRequest,
     "record_decision": RecordDecisionRequest,
+    "research_opportunities": ResearchOpportunitiesRequest,
+    "discover_counterparties": DiscoverCounterpartiesRequest,
+    "send_message": SendMessageRequest,
+    "get_counterparty_profile": GetCounterpartyProfileRequest,
+    "post_service_offer": PostServiceOfferRequest,
+    "read_messages": ReadMessagesRequest,
+    "follow_up_message": FollowUpMessageRequest,
+    "propose_collaboration": ProposeCollaborationRequest,
+    "get_market_status": GetMarketStatusRequest,
+    "list_active_conversations": ListActiveConversationsRequest,
 }

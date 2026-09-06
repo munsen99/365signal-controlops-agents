@@ -1,4 +1,4 @@
-"""Nine-tool contracts, plugin registration, and extra='forbid'."""
+"""Implemented economic-tool contracts, registration, and extra='forbid'."""
 
 from __future__ import annotations
 
@@ -10,7 +10,14 @@ from pathlib import Path
 
 import yaml
 
-from aea import NINE_TOOLS
+from aea import (
+    DECLARED_ECONOMIC_TOOLS,
+    DECLARED_UNIMPLEMENTED_TOOLS,
+    IMPLEMENTED_ECONOMIC_TOOLS,
+    NINE_TOOLS,
+)
+from aea.control.freeze import MUTATING_TOOLS, OBSERVE_TOOLS
+from aea.control.schemas import TOOL_MODELS
 
 REPO = Path(__file__).resolve().parents[3]
 PLUGIN_YAML = REPO / "autonomous_economic_agent" / "hermes_plugin" / "plugin.yaml"
@@ -18,19 +25,19 @@ PLUGIN_PY = REPO / "autonomous_economic_agent" / "hermes_plugin" / "__init__.py"
 AGENT_YAML = REPO / "agents" / "economic-agent" / "agent.yaml"
 
 
-def test_plugin_yaml_exactly_nine_names() -> None:
+def test_plugin_yaml_matches_implemented_tools() -> None:
     doc = yaml.safe_load(PLUGIN_YAML.read_text(encoding="utf-8"))
-    assert doc["provides_tools"] == list(NINE_TOOLS)
-    assert len(doc["provides_tools"]) == 9
-    assert len(set(doc["provides_tools"])) == 9
+    assert doc["provides_tools"] == list(IMPLEMENTED_ECONOMIC_TOOLS)
+    assert len(doc["provides_tools"]) == 19
+    assert len(set(doc["provides_tools"])) == 19
 
 
-def test_agent_yaml_allow_matches_nine() -> None:
+def test_agent_yaml_allow_matches_declared_capability_contract() -> None:
     doc = yaml.safe_load(AGENT_YAML.read_text(encoding="utf-8"))
-    assert doc["tools"]["allow"] == list(NINE_TOOLS)
+    assert doc["tools"]["allow"] == list(DECLARED_ECONOMIC_TOOLS)
 
 
-def test_plugin_register_only_loops_nine_tools() -> None:
+def test_plugin_register_only_loops_implemented_tools() -> None:
     tree = ast.parse(PLUGIN_PY.read_text(encoding="utf-8"))
     registered: list[str] = []
     for node in ast.walk(tree):
@@ -39,9 +46,9 @@ def test_plugin_register_only_loops_nine_tools() -> None:
                 for kw in node.keywords:
                     if kw.arg == "name" and isinstance(kw.value, ast.Name):
                         registered.append(kw.value.id)
-    # register_tool(name=name, ...) inside `for name in NINE_TOOLS`
+    # register_tool(name=name, ...) inside the implemented allow-list loop.
     src = PLUGIN_PY.read_text(encoding="utf-8")
-    assert "for name in NINE_TOOLS" in src
+    assert "for name in IMPLEMENTED_ECONOMIC_TOOLS" in src
     assert "signer" not in src.lower() or "AEA_SIGNER" not in src
     assert "ctx.register_tool" in src
     assert src.count("ctx.register_tool") == 1
@@ -66,10 +73,11 @@ def test_plugin_schemas_forbid_additional_properties() -> None:
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     assert tuple(mod.NINE_TOOLS) == NINE_TOOLS
+    assert tuple(mod.IMPLEMENTED_ECONOMIC_TOOLS) == IMPLEMENTED_ECONOMIC_TOOLS
     for name, schema in mod._SCHEMAS.items():
         assert schema["parameters"]["additionalProperties"] is False
         assert schema["name"] == name
-    assert set(mod._SCHEMAS) == set(NINE_TOOLS)
+    assert set(mod._SCHEMAS) == set(IMPLEMENTED_ECONOMIC_TOOLS)
     assert mod._SCHEMAS["get_financial_state"]["parameters"]["properties"] == {}
 
 
@@ -92,12 +100,41 @@ def test_plugin_registers_exactly_the_economic_toolset() -> None:
 
     ctx = Context()
     mod.register(ctx)
-    assert [item["name"] for item in ctx.tools] == list(NINE_TOOLS)
+    assert [item["name"] for item in ctx.tools] == list(IMPLEMENTED_ECONOMIC_TOOLS)
     assert {item["toolset"] for item in ctx.tools} == {"economic"}
     assert not {"project_create", "project_list", "project_switch"} & {
         item["name"] for item in ctx.tools
     }
+    assert not {
+        "terminal",
+        "file",
+        "web",
+        "browser",
+        "email",
+        "external_messaging",
+        "process",
+        "code_execution",
+    } & {item["name"] for item in ctx.tools}
     assert [name for name, _ in ctx.hooks] == ["pre_tool_call"]
+
+
+def test_all_declared_capabilities_are_implemented() -> None:
+    assert DECLARED_ECONOMIC_TOOLS == IMPLEMENTED_ECONOMIC_TOOLS
+    assert DECLARED_UNIMPLEMENTED_TOOLS == ()
+    assert len(IMPLEMENTED_ECONOMIC_TOOLS) == 19
+    assert set(TOOL_MODELS) == set(IMPLEMENTED_ECONOMIC_TOOLS)
+    assert MUTATING_TOOLS.isdisjoint(OBSERVE_TOOLS)
+    assert MUTATING_TOOLS | OBSERVE_TOOLS == set(IMPLEMENTED_ECONOMIC_TOOLS)
+
+
+def test_declared_but_unimplemented_capabilities_fail_closed() -> None:
+    spec = importlib.util.spec_from_file_location("economic_plugin_fail_closed", PLUGIN_PY)
+    assert spec and spec.loader
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    assert set(DECLARED_UNIMPLEMENTED_TOOLS).isdisjoint(mod._SCHEMAS)
+    for name in DECLARED_UNIMPLEMENTED_TOOLS:
+        assert mod.on_pre_tool_call(tool_name=name)["action"] == "block"
 
 
 def test_plugin_resolves_profile_local_model_token_without_active_secret_scope(

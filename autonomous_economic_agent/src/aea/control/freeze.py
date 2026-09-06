@@ -18,9 +18,25 @@ MUTATING_TOOLS = frozenset(
         "submit_work",
         "check_payment",
         "request_payment",
+        "send_message",
+        "post_service_offer",
+        "follow_up_message",
+        "propose_collaboration",
     }
 )
-OBSERVE_TOOLS = frozenset({"find_jobs", "get_financial_state", "record_decision"})
+OBSERVE_TOOLS = frozenset(
+    {
+        "find_jobs",
+        "get_financial_state",
+        "record_decision",
+        "research_opportunities",
+        "discover_counterparties",
+        "get_counterparty_profile",
+        "read_messages",
+        "get_market_status",
+        "list_active_conversations",
+    }
+)
 
 
 def tool_is_mutating(name: str) -> bool:

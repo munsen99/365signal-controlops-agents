@@ -17,7 +17,7 @@ from uuid import UUID, uuid4
 
 from pydantic import ValidationError
 
-from aea import AGENT_ID, CONSTITUTION_VERSION, NINE_TOOLS, POLICY_VERSION
+from aea import AGENT_ID, CONSTITUTION_VERSION, IMPLEMENTED_ECONOMIC_TOOLS, POLICY_VERSION
 from aea.config import LoadedPolicy, load_policy
 from aea.control.auth import (
     authorize_control_only,
@@ -29,8 +29,10 @@ from aea.control.freeze import inspect_control_safety, tool_is_mutating
 from aea.control.plane import EconomicPlane
 from aea.control.schemas import TOOL_MODELS, RequestPaymentRequest
 from aea.hashing import canonical_json_hash
+from aea.ledger.models import AuditWrite
 from aea.ledger.service import LedgerService
 from aea.marketplace.mock import MockMarketplace
+from aea.marketplace.engagement import EconomicEngagementService
 from aea.marketplace.protocol import MarketplaceAdapter, MarketplaceError
 from aea.payment.service import PaymentOrchestrator
 from aea.policy.reasons import HttpCode, ReasonCode
@@ -64,7 +66,13 @@ def _json_bytes(payload: dict[str, Any]) -> bytes:
     return json.dumps(payload, separators=(",", ":"), default=str).encode("utf-8")
 
 
-def _scrub(payload: dict[str, Any], *, secrets: tuple[str, ...] = ()) -> dict[str, Any]:
+def _scrub(payload: Any, *, secrets: tuple[str, ...] = ()) -> Any:
+    if isinstance(payload, list):
+        return [_scrub(item, secrets=secrets) for item in payload]
+    if not isinstance(payload, dict):
+        if isinstance(payload, str) and payload in secrets:
+            return "[redacted]"
+        return payload
     blocked = {s.lower() for s in secrets}
     out: dict[str, Any] = {}
     for key, value in payload.items():
@@ -75,7 +83,7 @@ def _scrub(payload: dict[str, Any], *, secrets: tuple[str, ...] = ()) -> dict[st
             continue
         if isinstance(value, str) and value.lower() in blocked:
             continue
-        out[key] = value
+        out[key] = _scrub(value, secrets=secrets)
     return out
 
 
@@ -171,6 +179,7 @@ class ControlService:
         live_gate: Any | None = None,
         configured_solana: dict[str, Any] | None = None,
         configured_evm: dict[str, Any] | None = None,
+        engagement: EconomicEngagementService | None = None,
         auto_commit: bool = True,
     ) -> None:
         if not model_token:
@@ -197,6 +206,7 @@ class ControlService:
         self._live_gate = live_gate
         self._configured_solana = configured_solana or {}
         self._configured_evm = configured_evm or {}
+        self._engagement = engagement or EconomicEngagementService()
         self._auto_commit = auto_commit
         self._idem: dict[tuple[str, str], tuple[str, dict[str, Any]]] = {}
         self._plane = None
@@ -325,7 +335,7 @@ class ControlService:
         receive: Receive,
         send: Send,
     ) -> None:
-        if name not in NINE_TOOLS:
+        if name not in IMPLEMENTED_ECONOMIC_TOOLS:
             await _send_json(
                 send,
                 status=404,
@@ -418,7 +428,17 @@ class ControlService:
         try:
             result = self._dispatch(name, req, correlation_id=headers.get("x-aea-correlation-id") or str(uuid4()))
         except MarketplaceError as exc:
-            code = exc.code if exc.code in {HttpCode.NETWORK_FAILURE, HttpCode.NOT_FOUND, HttpCode.CONFLICT} else HttpCode.MARKETPLACE_UNAVAILABLE
+            preserved = {
+                HttpCode.NETWORK_FAILURE,
+                HttpCode.NOT_FOUND,
+                HttpCode.CONFLICT,
+                HttpCode.FORBIDDEN,
+                HttpCode.VALIDATION_ERROR,
+                HttpCode.PROMPT_INJECTION_DETECTED,
+                HttpCode.POLICY_REJECTED,
+                HttpCode.TIMEOUT,
+            }
+            code = exc.code if exc.code in preserved else HttpCode.MARKETPLACE_UNAVAILABLE
             result = {"ok": False, "code": code}
         except Exception:
             result = {"ok": False, "code": HttpCode.INTERNAL_ERROR}
@@ -460,7 +480,87 @@ class ControlService:
                 }
         return inspect_control_safety(self._freeze_path, **db_kw)
 
+    def _audit_engagement(self, event_type: str, result: dict[str, Any], correlation_id: str) -> None:
+        if self._ledger is None:
+            return
+        payload = {
+            "agent_id": AGENT_ID,
+            "action": event_type,
+            "result": result.get("code"),
+            "counterparty_id": result.get("counterparty_id"),
+            "conversation_id": result.get("conversation_id"),
+            "message_id": result.get("message_id"),
+            "offer_id": result.get("offer_id"),
+            "intent": result.get("intent"),
+            "channel": result.get("channel"),
+            "marketplace": result.get("marketplace") or result.get("source"),
+            "economic_context": {
+                "non_binding": result.get("non_binding", True),
+                "paid_subcontracting": result.get("paid_subcontracting", False),
+            },
+        }
+        self._ledger.write_audit(
+            AuditWrite.model_validate(
+                {
+                    "event_type": event_type,
+                    "correlation_id": correlation_id,
+                    "payload": payload,
+                }
+            )
+        )
+
     def _dispatch(self, name: str, req: Any, *, correlation_id: str) -> dict[str, Any]:
+        if name == "research_opportunities":
+            return self._engagement.research_opportunities(query=req.query, limit=req.limit)
+        if name == "discover_counterparties":
+            return self._engagement.discover_counterparties(query=req.query, limit=req.limit)
+        if name == "get_counterparty_profile":
+            return self._engagement.get_counterparty_profile(counterparty_id=req.counterparty_id)
+        if name == "get_market_status":
+            return self._engagement.get_market_status(marketplace=req.marketplace)
+        if name == "read_messages":
+            return self._engagement.read_messages(
+                counterparty_id=req.counterparty_id,
+                conversation_id=req.conversation_id,
+                limit=req.limit,
+            )
+        if name == "list_active_conversations":
+            return self._engagement.list_active_conversations(limit=req.limit)
+        if name == "send_message":
+            result = self._engagement.send_message(
+                counterparty_id=req.counterparty_id,
+                channel=req.channel,
+                intent=req.intent,
+                message=req.message,
+                idempotency_key=req.idempotency_key,
+            )
+            self._audit_engagement("bounded_message_sent", result, correlation_id)
+            return result
+        if name == "follow_up_message":
+            result = self._engagement.follow_up_message(
+                conversation_id=req.conversation_id,
+                message=req.message,
+                idempotency_key=req.idempotency_key,
+            )
+            self._audit_engagement("follow_up_sent", result, correlation_id)
+            return result
+        if name == "propose_collaboration":
+            result = self._engagement.propose_collaboration(
+                counterparty_id=req.counterparty_id,
+                channel=req.channel,
+                proposal=req.proposal,
+                idempotency_key=req.idempotency_key,
+            )
+            self._audit_engagement("collaboration_proposed", result, correlation_id)
+            return result
+        if name == "post_service_offer":
+            result = self._engagement.post_service_offer(
+                marketplace=req.marketplace,
+                service_id=req.service_id,
+                idempotency_key=req.idempotency_key,
+            )
+            self._audit_engagement("service_offer_posted", result, correlation_id)
+            return result
         if self._plane is not None:
             return self._plane.dispatch(name, req, correlation_id=correlation_id)
         if name == "get_financial_state":
@@ -606,6 +706,7 @@ def create_app(
     live_gate: Any | None = None,
     configured_solana: dict[str, Any] | None = None,
     configured_evm: dict[str, Any] | None = None,
+    engagement: EconomicEngagementService | None = None,
     auto_commit: bool = True,
     hmac_key: str | None = None,
     debit_token: str | None = None,
@@ -632,6 +733,7 @@ def create_app(
         live_gate=live_gate,
         configured_solana=configured_solana,
         configured_evm=configured_evm,
+        engagement=engagement,
         auto_commit=auto_commit,
         hmac_key=hmac_key,
         debit_token=debit_token,

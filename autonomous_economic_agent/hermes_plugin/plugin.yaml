@@ -13,3 +13,13 @@ provides_tools:
   - request_payment
   - get_financial_state
   - record_decision
+  - research_opportunities
+  - discover_counterparties
+  - send_message
+  - get_counterparty_profile
+  - post_service_offer
+  - read_messages
+  - follow_up_message
+  - propose_collaboration
+  - get_market_status
+  - list_active_conversations

@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import inspect
 import json
+from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
 from uuid import uuid4
@@ -13,12 +14,14 @@ import httpx
 import pytest
 from pydantic import ValidationError
 
-from aea import NINE_TOOLS
+from aea import DECLARED_UNIMPLEMENTED_TOOLS, IMPLEMENTED_ECONOMIC_TOOLS, NINE_TOOLS
 from aea.config import load_policy
 from aea.control.app import create_app
 from aea.control.schemas import GetFinancialStateRequest, RequestPaymentRequest
 from aea.ledger.service import LedgerService
 from aea.marketplace.mock import MockMarketplace
+from aea.marketplace.engagement import EconomicEngagementService
+from aea.marketplace.intelligence import MarketObservation
 from aea.tools_client.http import ToolClient
 from aea.wallet.mock import MockWallet
 
@@ -98,7 +101,37 @@ def conn():
 
 
 @pytest.fixture
-def app(freeze_dir: Path, market: MockMarketplace, wallet: MockWallet, conn):
+def engagement() -> EconomicEngagementService:
+    class Transport:
+        source = "the402"
+
+        def send_non_binding_message(self, **_kwargs):  # type: ignore[no-untyped-def]
+            return {"message_id": "msg-control-auth-1"}
+
+    def research():
+        return {
+            "the402": [
+                MarketObservation(
+                    marketplace="the402",
+                    observed_at=datetime(2026, 9, 6, tzinfo=timezone.utc),
+                    source="GET /v1/postings",
+                    external_id="posting-auth-1",
+                    poster_id="buyer-auth-1",
+                    title="Bounded public research",
+                    reward_usd="2.000000",
+                    asset="USDC",
+                    chain="base",
+                    funded=True,
+                    status="open",
+                )
+            ]
+        }
+
+    return EconomicEngagementService(research_fn=research, transports={"the402": Transport()})
+
+
+@pytest.fixture
+def app(freeze_dir: Path, market: MockMarketplace, wallet: MockWallet, conn, engagement):
     return create_app(
         model_token=MODEL,
         freeze_path=freeze_dir / "FREEZE",
@@ -110,6 +143,7 @@ def app(freeze_dir: Path, market: MockMarketplace, wallet: MockWallet, conn):
         wallet_get_tx=wallet.get_tx,
         wallet_balances=wallet.get_balances,
         ledger=LedgerService(conn, policy=load_policy()),
+        engagement=engagement,
         auto_commit=False,
     )
 
@@ -165,6 +199,134 @@ def test_nine_tools_exist_and_unknown_is_404(app) -> None:
     assert tenth.status_code == 404
     alias = _request(app, "POST", "/v1/tools/find-jobs", json={}, headers=_auth(MODEL))
     assert alias.status_code == 404
+
+
+def test_new_bounded_tools_require_model_auth_and_observation_tools_work(app) -> None:
+    new_tools = (
+        "research_opportunities",
+        "discover_counterparties",
+        "send_message",
+        "get_counterparty_profile",
+        "post_service_offer",
+        "read_messages",
+        "follow_up_message",
+        "propose_collaboration",
+        "get_market_status",
+        "list_active_conversations",
+    )
+    for name in new_tools:
+        missing = _request(app, "POST", f"/v1/tools/{name}", json={})
+        assert missing.status_code == 401, name
+        assert missing.json()["code"] == "UNAUTHENTICATED", name
+    research = _request(
+        app,
+        "POST",
+        "/v1/tools/research_opportunities",
+        json={"query": "legitimate agent research work", "limit": 2},
+        headers=_auth(MODEL),
+    )
+    counterparties = _request(
+        app,
+        "POST",
+        "/v1/tools/discover_counterparties",
+        json={"query": "legitimate research buyers", "limit": 2},
+        headers=_auth(MODEL),
+    )
+    assert research.status_code == 200 and research.json()["code"] == "OK"
+    assert counterparties.status_code == 200 and counterparties.json()["code"] == "OK"
+    profile = _request(
+        app,
+        "POST",
+        "/v1/tools/get_counterparty_profile",
+        json={"counterparty_id": "the402:buyer-auth-1"},
+        headers=_auth(MODEL),
+    )
+    status = _request(app, "POST", "/v1/tools/get_market_status", json={}, headers=_auth(MODEL))
+    offer = _request(
+        app,
+        "POST",
+        "/v1/tools/post_service_offer",
+        json={"idempotency_key": "control-offer-auth-1"},
+        headers=_auth(MODEL),
+    )
+    sent = _request(
+        app,
+        "POST",
+        "/v1/tools/send_message",
+        json={
+            "counterparty_id": "the402:buyer-auth-1",
+            "channel": "marketplace_api",
+            "intent": "ask_work_available",
+            "message": "Is legitimate bounded research work currently available?",
+            "idempotency_key": "control-message-auth-1",
+        },
+        headers=_auth(MODEL),
+    )
+    collab = _request(
+        app,
+        "POST",
+        "/v1/tools/propose_collaboration",
+        json={
+            "counterparty_id": "the402:buyer-auth-1",
+            "proposal": "I can handle the research comparison portion as a non-binding subtask.",
+            "idempotency_key": "control-collab-auth-1",
+        },
+        headers=_auth(MODEL),
+    )
+    listed = _request(
+        app, "POST", "/v1/tools/list_active_conversations", json={}, headers=_auth(MODEL)
+    )
+    inbox = _request(
+        app,
+        "POST",
+        "/v1/tools/read_messages",
+        json={"counterparty_id": "the402:buyer-auth-1"},
+        headers=_auth(MODEL),
+    )
+    assert profile.status_code == 200 and profile.json()["code"] == "OK"
+    assert status.status_code == 200 and status.json()["code"] == "OK"
+    assert offer.status_code == 200 and offer.json()["canonical_profile"] is True
+    assert sent.status_code == 200 and sent.json()["code"] == "OK"
+    assert sent.json()["non_binding"] is True
+    assert collab.status_code == 200 and collab.json()["paid_subcontracting"] is False
+    assert listed.status_code == 200 and listed.json()["conversations"]
+    assert inbox.status_code == 200 and inbox.json()["code"] == "OK"
+    follow = _request(
+        app,
+        "POST",
+        "/v1/tools/follow_up_message",
+        json={
+            "conversation_id": sent.json()["conversation_id"],
+            "message": "Checking whether this research task is still open.",
+            "idempotency_key": "control-follow-auth-1",
+        },
+        headers=_auth(MODEL),
+    )
+    assert follow.status_code == 403
+    assert follow.json()["code"] == "FORBIDDEN"
+    injected = _request(
+        app,
+        "POST",
+        "/v1/tools/research_opportunities",
+        json={"query": "legitimate work", "url": "https://evil.example/jobs", "limit": 1},
+        headers=_auth(MODEL),
+    )
+    assert injected.status_code == 400
+    assert set(IMPLEMENTED_ECONOMIC_TOOLS) == set(NINE_TOOLS) | set(new_tools)
+    assert len(IMPLEMENTED_ECONOMIC_TOOLS) == 19
+
+
+def test_declared_unimplemented_capabilities_have_no_control_route(app) -> None:
+    for name in DECLARED_UNIMPLEMENTED_TOOLS:
+        response = _request(
+            app,
+            "POST",
+            f"/v1/tools/{name}",
+            json={},
+            headers=_auth(MODEL),
+        )
+        assert response.status_code == 404, name
+        assert response.json()["code"] == "NOT_FOUND", name
 
 
 def test_control_and_other_tokens_forbidden_on_tools(app) -> None:

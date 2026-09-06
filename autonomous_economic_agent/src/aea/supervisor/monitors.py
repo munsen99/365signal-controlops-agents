@@ -18,6 +18,7 @@ from aea.supervisor.incidents import (
     DAILY_SPEND_WARN,
     FAILED_TXS,
     FAKE_PAYMENT,
+    FOLLOWUP_DUE,
     IncidentDraft,
     JOB_FAILURE_RATE,
     POLICY_REJECTIONS,
@@ -51,6 +52,7 @@ class MonitorSnapshot:
     job_total: int | None = None
     control_healthy: bool | None = None
     fake_payment_count: int | None = None
+    due_followups: int = 0
 
 
 @dataclass(frozen=True)
@@ -163,6 +165,9 @@ def evaluate_monitors(snapshot: MonitorSnapshot) -> MonitorDecision:
         freeze = True
         note("critical", FAKE_PAYMENT, "repeated FAKE_PAYMENT")
 
+    if snapshot.due_followups > 0:
+        note("info", FOLLOWUP_DUE, "supervisor-observed follow-up conversations are due")
+
     return MonitorDecision(
         freeze_spend=freeze,
         disable_signer=disable_signer,
@@ -201,4 +206,5 @@ def snapshot_from_mapping(raw: dict[str, Any]) -> MonitorSnapshot:
         job_total=raw.get("job_total"),
         control_healthy=raw.get("control_healthy"),
         fake_payment_count=raw.get("fake_payment_count"),
+        due_followups=int(raw.get("due_followups") or 0),
     )

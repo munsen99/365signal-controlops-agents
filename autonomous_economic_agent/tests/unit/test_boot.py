@@ -5,7 +5,9 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+import yaml
 
+from aea import DECLARED_ECONOMIC_TOOLS
 from aea.control.boot import BootError, validate_boot
 
 REPO = Path(__file__).resolve().parents[3]
@@ -54,3 +56,21 @@ def test_open_question_1_disabled_toolsets_remain() -> None:
     text = PROFILE.read_text(encoding="utf-8")
     assert "file" in text and "terminal" in text and "web" in text and "process" in text
     assert "Do not re-enable terminal" in text
+
+
+def test_validate_boot_rejects_unrestricted_api_server_toolsets(tmp_path: Path) -> None:
+    cfg = yaml.safe_load(PROFILE.read_text(encoding="utf-8"))
+    cfg["platform_toolsets"]["api_server"] = ["hermes-api-server"]
+    profile = tmp_path / "config.yaml"
+    profile.write_text(yaml.safe_dump(cfg), encoding="utf-8")
+    agent_cfg = yaml.safe_load(AGENT.read_text(encoding="utf-8"))
+    agent_cfg["tools"]["allow"] = list(DECLARED_ECONOMIC_TOOLS)
+    agent = tmp_path / "agent.yaml"
+    agent.write_text(yaml.safe_dump(agent_cfg), encoding="utf-8")
+    with pytest.raises(BootError, match="platform_toolsets.api_server"):
+        validate_boot(
+            soul_path=SOUL,
+            agent_yaml=agent,
+            profile_config=profile,
+            plugin_yaml=PLUGIN,
+        )

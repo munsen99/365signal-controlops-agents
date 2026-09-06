@@ -6,7 +6,13 @@ from pathlib import Path
 
 import yaml
 
-from aea import AGENT_ID, CONSTITUTION_VERSION, NINE_TOOLS, POLICY_VERSION
+from aea import (
+    AGENT_ID,
+    CONSTITUTION_VERSION,
+    DECLARED_ECONOMIC_TOOLS,
+    IMPLEMENTED_ECONOMIC_TOOLS,
+    POLICY_VERSION,
+)
 
 _SECRET_NEEDLES = (
     "AEA_MODEL_TOKEN",
@@ -48,8 +54,8 @@ def validate_boot(
         raise BootError("agent.yaml agent_id mismatch")
     if agent["identity"]["constitution_version"] != expected_constitution:
         raise BootError("agent.yaml constitution version mismatch")
-    if list(agent["tools"]["allow"]) != list(NINE_TOOLS):
-        raise BootError("agent.yaml tools.allow is not the nine economic tools")
+    if list(agent["tools"]["allow"]) != list(DECLARED_ECONOMIC_TOOLS):
+        raise BootError("agent.yaml tools.allow does not match the declared economic capabilities")
     _forbid_secrets(agent_yaml, agent_yaml.read_text(encoding="utf-8"))
 
     cfg_text = profile_config.read_text(encoding="utf-8")
@@ -60,15 +66,17 @@ def validate_boot(
         raise BootError("profile config missing required disabled_toolsets")
     if cfg["plugins"]["enabled"] != ["economic-agent"]:
         raise BootError("profile must enable only economic-agent")
-    if cfg.get("platform_toolsets", {}).get("cli") != ["economic"]:
-        raise BootError("profile platform_toolsets.cli must be [economic]")
+    platform_toolsets = cfg.get("platform_toolsets", {})
+    for platform in ("cli", "api_server"):
+        if platform_toolsets.get(platform) != ["economic"]:
+            raise BootError(f"profile platform_toolsets.{platform} must be [economic]")
     _forbid_secrets(profile_config, cfg_text)
 
     plugin = yaml.safe_load(plugin_yaml.read_text(encoding="utf-8"))
     if plugin.get("name") != "economic-agent":
         raise BootError("plugin.yaml name mismatch")
-    if list(plugin.get("provides_tools") or []) != list(NINE_TOOLS):
-        raise BootError("plugin.yaml must provide exactly the nine tools")
+    if list(plugin.get("provides_tools") or []) != list(IMPLEMENTED_ECONOMIC_TOOLS):
+        raise BootError("plugin.yaml must provide exactly the implemented economic tools")
     _forbid_secrets(plugin_yaml, plugin_yaml.read_text(encoding="utf-8"))
 
     if run_input is not None:

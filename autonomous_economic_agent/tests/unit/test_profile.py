@@ -6,7 +6,12 @@ from pathlib import Path
 
 import yaml
 
-from aea import NINE_TOOLS
+from aea import (
+    DECLARED_ECONOMIC_TOOLS,
+    DECLARED_UNIMPLEMENTED_TOOLS,
+    IMPLEMENTED_ECONOMIC_TOOLS,
+    NINE_TOOLS,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 AGENT_DIR = REPO_ROOT / "agents" / "economic-agent"
@@ -15,6 +20,7 @@ AGENT_YAML = AGENT_DIR / "agent.yaml"
 RUN_INPUT = AGENT_DIR / "templates" / "run-input.yaml"
 COMPOSE_LINK = REPO_ROOT / "ops" / "compose.economic.yaml"
 COMPOSE_CANONICAL = REPO_ROOT / "autonomous_economic_agent" / "ops" / "compose.economic.yaml"
+ECONOMIC_CLI = REPO_ROOT / "scripts" / "economic"
 
 REQUIRED_DISABLED = {"file", "terminal", "web", "process"}
 
@@ -36,6 +42,7 @@ def test_disabled_toolsets_include_file_terminal_web_process() -> None:
     disabled = set(cfg["agent"]["disabled_toolsets"])
     assert REQUIRED_DISABLED <= disabled
     assert cfg["platform_toolsets"]["cli"] == ["economic"]
+    assert cfg["platform_toolsets"]["api_server"] == ["economic"]
     assert cfg["plugins"]["enabled"] == ["economic-agent"]
     profile_text = PROFILE.read_text(encoding="utf-8")
     assert "AEA_MODEL_TOKEN" not in profile_text
@@ -44,9 +51,20 @@ def test_disabled_toolsets_include_file_terminal_web_process() -> None:
     assert "Bearer" not in profile_text
 
 
-def test_agent_yaml_nine_tools_only() -> None:
+def test_profile_installer_pins_tui_and_uses_portable_plugin_copy() -> None:
+    text = ECONOMIC_CLI.read_text(encoding="utf-8")
+    assert "HERMES_TUI_TOOLSETS=economic" in text
+    assert "AEA_MODEL_TOKEN_FILE=/opt/data/profiles/economic-agent/.aea-model-token" in text
+    assert "install -m 0600 \"${AEA_DIR}/hermes_plugin/plugin.yaml\"" in text
+    assert "ln -sfn /workspace/autonomous_economic_agent/hermes_plugin" not in text
+
+
+def test_agent_yaml_declares_authoritative_capabilities() -> None:
     doc = yaml.safe_load(AGENT_YAML.read_text(encoding="utf-8"))
-    assert doc["tools"]["allow"] == list(NINE_TOOLS)
+    assert doc["tools"]["allow"] == list(DECLARED_ECONOMIC_TOOLS)
+    assert set(DECLARED_UNIMPLEMENTED_TOOLS) == set(doc["tools"]["allow"]) - set(
+        IMPLEMENTED_ECONOMIC_TOOLS
+    )
     assert "terminal" in doc["tools"]["deny"]
     assert "signer" in doc["tools"]["deny"]
     assert doc["security"]["wallet_key_access"] is False

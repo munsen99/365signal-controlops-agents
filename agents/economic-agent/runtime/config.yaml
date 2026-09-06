@@ -61,4 +61,4 @@ session_reset:
 #
 # Open Question 1 (PR8): file/terminal/web/process stay in disabled_toolsets.
 # Do not re-enable terminal to make Hermes boot. The plugin pre_tool_call
-# nine-name allow-list is the fail-closed fallback.
+# implemented-tool allow-list is the fail-closed fallback.

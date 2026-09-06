@@ -33,6 +33,16 @@ tools:
     - request_payment
     - get_financial_state
     - record_decision
+    - research_opportunities
+    - discover_counterparties
+    - send_message
+    - get_counterparty_profile
+    - post_service_offer
+    - read_messages
+    - follow_up_message
+    - propose_collaboration
+    - get_market_status
+    - list_active_conversations
   deny:
     - terminal
     - process
@@ -47,10 +57,10 @@ tools:
     - docker_socket
     - git_commit
     - email
-    - external_messaging
     - signer
     - policy_admin
     - supervisor_admin
+    - external_messaging
 
 security:
   approved_write_roots:
@@ -59,6 +69,9 @@ security:
   privileged_write_access: false
   customer_data_allowed: false
   wallet_key_access: false
+  arbitrary_network_access: false
+  arbitrary_external_messaging: false
+  marketplace_credentials_visible_to_agent: false
 
 execution_policy:
   max_tool_calls: 40
