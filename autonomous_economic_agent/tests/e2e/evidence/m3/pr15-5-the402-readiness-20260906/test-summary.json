@@ -1,0 +1,19 @@
+{
+  "focused_pr15_the402_marketplace_m2b": {
+    "result": "PASS",
+    "count": 57
+  },
+  "full_aea_pytest": {
+    "result": "PASS",
+    "count": 472
+  },
+  "platform_paused_classification": "PASS",
+  "onboarding_ready_classification": "PASS",
+  "no_eligible_demand_classification": "PASS",
+  "candidate_review_classification": "PASS",
+  "malformed_response_fail_closed": "PASS",
+  "get_only_boundary": "PASS",
+  "unauthenticated_boundary": "PASS",
+  "accepted_gate_a_evidence_restored_unchanged_after_test": true,
+  "git_diff_check": "PASS"
+}

@@ -1,0 +1,93 @@
+#!/usr/bin/env python3
+"""Read-only public readiness watch for the402."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from datetime import UTC, datetime
+
+from aea.marketplace.live.the402_readiness import (
+    PublicThe402ReadinessClient,
+    The402ReadinessResult,
+    classify_readiness,
+)
+from aea.marketplace.protocol import MarketplaceError
+
+
+def _render(result: The402ReadinessResult) -> str:
+    lines = [
+        f"THE402 READINESS: {result.state}",
+        "",
+        f"paused: {str(result.paused).lower() if result.paused is not None else 'unknown'}",
+    ]
+    if result.pause_reason:
+        lines.append(f"reason: {result.pause_reason}")
+    lines.extend(
+        [
+            f"open_postings: {result.open_postings}",
+            f"funded_postings: {result.funded_postings}",
+            f"eligible_postings: {result.eligible_postings}",
+            "",
+            f"operator_onboarding: {result.operator_onboarding}",
+            f"pr16: {result.pr16}",
+        ]
+    )
+    if result.candidate:
+        lines.extend(
+            [
+                "",
+                "candidate:",
+                f"  posting_id: {result.candidate.posting_id}",
+                f"  reward: {result.candidate.reward}",
+                f"  net_reward: {result.candidate.net_reward}",
+                f"  asset: {result.candidate.asset}",
+                f"  chain: {result.candidate.chain}",
+                f"  task_type: {result.candidate.task_type}",
+                f"  output_type: {result.candidate.output_type}",
+                f"  task_age_seconds: {result.candidate.task_age_seconds}",
+            ]
+        )
+    if result.error:
+        lines.append(f"error: {result.error}")
+    return "\n".join(lines)
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--json", action="store_true", help="emit sanitized JSON")
+    parser.add_argument("--limit", type=int, default=20, choices=range(1, 21))
+    parser.add_argument(
+        "--onboarding-complete",
+        action="store_true",
+        help="operator assertion only; does not read credentials or authenticate",
+    )
+    args = parser.parse_args()
+    checked = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+    client = PublicThe402ReadinessClient()
+    try:
+        health = client.get_health()
+        postings = client.get_postings(limit=args.limit)
+    except MarketplaceError:
+        result = classify_readiness({}, {}, checked_at=checked)
+        code = 1
+    except (TypeError, ValueError):
+        result = classify_readiness({}, {}, checked_at=checked)
+        code = 2
+    else:
+        result = classify_readiness(
+            health,
+            postings,
+            onboarding_complete=args.onboarding_complete,
+            checked_at=checked,
+        )
+        code = 2 if result.state == "UNKNOWN" else 0
+    finally:
+        client.close()
+    print(json.dumps(result.as_dict(), sort_keys=True, indent=2) if args.json else _render(result))
+    return code
+
+
+if __name__ == "__main__":
+    sys.exit(main())

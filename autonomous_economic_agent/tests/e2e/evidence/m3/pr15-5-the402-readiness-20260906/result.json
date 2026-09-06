@@ -1,0 +1,39 @@
+{
+  "run_id": "pr15-5-the402-readiness-20260906T123844Z",
+  "checked_at": "2026-09-06T12:38:44.035211Z",
+  "marketplace": "the402",
+  "state": "PLATFORM_PAUSED",
+  "health": {
+    "paused": true,
+    "pause_reason": "compliance review",
+    "network": "base"
+  },
+  "open_postings": 0,
+  "funded_postings": 0,
+  "eligible_postings": 0,
+  "candidate": null,
+  "operator_onboarding": "BLOCKED",
+  "pr16": "NOT_READY",
+  "http_requests": [
+    {
+      "method": "GET",
+      "path": "/health"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/postings?limit=20"
+    }
+  ],
+  "authentication_used": false,
+  "credential_files_read": false,
+  "wallet_accessed": false,
+  "signer_accessed": false,
+  "capital_moved": false,
+  "wallet_authority_expansion": false,
+  "marketplace_mutation": false,
+  "bid_placed": false,
+  "job_accepted": false,
+  "job_submitted": false,
+  "pr16_started": false,
+  "secrets_in_evidence": false
+}
