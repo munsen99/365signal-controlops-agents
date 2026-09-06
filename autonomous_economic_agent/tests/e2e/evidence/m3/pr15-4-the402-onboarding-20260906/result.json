@@ -1,0 +1,51 @@
+{
+  "run_id": "pr15-4-the402-onboarding-20260906",
+  "observed_date": "2026-09-06",
+  "contract_version": "v0.1.2",
+  "result": "OPERATOR_ACTION_REQUIRED_PLATFORM_PAUSED",
+  "technical_readiness": "PASS",
+  "operator_onboarding": "PENDING",
+  "provider_capability": {
+    "marketplace": "the402",
+    "role": "provider",
+    "settlement_chain": "base",
+    "settlement_asset": "USDC",
+    "payout_wallet": "external",
+    "auth": "scoped_api_key",
+    "credential_reference": "the402/provider/default",
+    "buyer_flow": "disabled",
+    "arbitrary_signing": false,
+    "typed_data_signing": false,
+    "transaction_signing": false,
+    "custody": false,
+    "capital_spend": false
+  },
+  "payout_wallet": "0x7fc8ACC21e601c488e6EE4eE39AD67d3ecA12a7e",
+  "payout_wallet_configured_on_marketplace": false,
+  "credentials_issued": false,
+  "credentials_entered_model_context": false,
+  "provider_api_auth": "X-API-Key from protected regular non-symlink 0600 file",
+  "webhook_auth": "HMAC-SHA256 protected secret file; not yet issued",
+  "platform": {
+    "status": "paused",
+    "paused": true,
+    "pause_reason": "compliance review",
+    "network": "base"
+  },
+  "live_demand": {
+    "open_postings": 0,
+    "funded_postings": 0,
+    "eligible_funded_postings": 0
+  },
+  "external_side_effects": [
+    "GET https://api.the402.ai/health",
+    "GET https://api.the402.ai/v1/postings?limit=20"
+  ],
+  "capital_moved": false,
+  "wallet_authority_expansion": false,
+  "bid_placed": false,
+  "job_accepted": false,
+  "job_submitted": false,
+  "pr16_started": false,
+  "secrets_in_evidence": false
+}

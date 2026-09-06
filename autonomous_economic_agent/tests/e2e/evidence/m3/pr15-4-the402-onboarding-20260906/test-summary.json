@@ -1,0 +1,21 @@
+{
+  "focused_provider_marketplace_m2b": {
+    "result": "PASS",
+    "count": 50
+  },
+  "full_aea_pytest": {
+    "result": "PASS",
+    "count": 465
+  },
+  "read_only_onboarding_checker": "PASS",
+  "credential_file_permissions": "PASS",
+  "credential_file_owner_check": "PASS",
+  "credential_symlink_rejection": "PASS",
+  "raw_secret_environment_rejection": "PASS",
+  "provider_role_enforcement": "PASS",
+  "buyer_and_signing_methods_absent": "PASS",
+  "webhook_hmac_regression": "PASS",
+  "accepted_evidence_restored_unchanged_after_test": true,
+  "git_diff_check": "PASS",
+  "staged_changes": false
+}

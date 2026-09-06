@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import stat
 import time
 from dataclasses import dataclass, field
 from decimal import Decimal
@@ -139,14 +140,53 @@ def _flag(name: str) -> bool:
     return os.environ.get(name, "").strip().lower() in {"1", "true", "yes", "on"}
 
 
-def _read_secret(env_name: str, file_env: str) -> str | None:
-    value = os.environ.get(env_name)
-    if value:
-        return value
-    path = os.environ.get(file_env)
-    if path:
-        return Path(path).read_text(encoding="utf-8").rstrip("\n")
-    return None
+@dataclass(frozen=True)
+class The402ProviderCapability:
+    """Public, model-safe description of the deliberately narrow provider role."""
+
+    marketplace: str = "the402"
+    role: str = "provider"
+    settlement_chain: str = "base"
+    settlement_asset: str = "USDC"
+    payout_wallet: str = "external"
+    auth: str = "scoped_api_key"
+    credential_reference: str = "the402/provider/default"
+    buyer_flow: str = "disabled"
+    arbitrary_signing: bool = False
+    typed_data_signing: bool = False
+    transaction_signing: bool = False
+    custody: bool = False
+    capital_spend: bool = False
+
+
+PROVIDER_CAPABILITY = The402ProviderCapability()
+
+
+def _read_protected_secret(file_env: str, *, expected_prefix: str) -> str | None:
+    """Read an operator-installed secret without accepting secret-valued env vars."""
+
+    raw_path = os.environ.get(file_env)
+    if not raw_path:
+        return None
+    path = Path(raw_path)
+    try:
+        info = path.lstat()
+    except OSError as exc:
+        raise MarketplaceError(HttpCode.UNAUTHENTICATED, "the402 credential file is unavailable") from exc
+    if stat.S_ISLNK(info.st_mode) or not stat.S_ISREG(info.st_mode):
+        raise MarketplaceError(HttpCode.UNAUTHENTICATED, "the402 credential file must be a regular non-symlink")
+    if stat.S_IMODE(info.st_mode) != 0o600:
+        raise MarketplaceError(HttpCode.UNAUTHENTICATED, "the402 credential file permissions must be 0600")
+    expected_uid = int(os.environ.get("AEA_THE402_SECRET_UID", str(os.geteuid())))
+    if info.st_uid != expected_uid:
+        raise MarketplaceError(HttpCode.UNAUTHENTICATED, "the402 credential file owner is invalid")
+    try:
+        value = path.read_text(encoding="utf-8").rstrip("\n")
+    except (OSError, UnicodeError) as exc:
+        raise MarketplaceError(HttpCode.UNAUTHENTICATED, "the402 credential file is unreadable") from exc
+    if "\n" in value or "\r" in value or not value.startswith(expected_prefix) or len(value) > 512:
+        raise MarketplaceError(HttpCode.UNAUTHENTICATED, "the402 credential file format is invalid")
+    return value
 
 
 def _redact(text: str, secrets: tuple[str, ...]) -> str:
@@ -725,8 +765,10 @@ class The402Adapter:
             raise TypeError("from_env does not accept model-supplied kwargs")
         if not _flag("AEA_THE402_ENABLED"):
             raise MarketplaceError(HttpCode.VALIDATION_ERROR, "the402 adapter is disabled by default")
-        api_key = _read_secret("AEA_THE402_API_KEY", "AEA_THE402_API_KEY_FILE")
-        webhook_secret = _read_secret("AEA_THE402_WEBHOOK_SECRET", "AEA_THE402_WEBHOOK_SECRET_FILE")
+        if os.environ.get("AEA_THE402_API_KEY") or os.environ.get("AEA_THE402_WEBHOOK_SECRET"):
+            raise MarketplaceError(HttpCode.FORBIDDEN, "raw the402 credentials in environment are forbidden")
+        api_key = _read_protected_secret("AEA_THE402_API_KEY_FILE", expected_prefix="sk_")
+        webhook_secret = _read_protected_secret("AEA_THE402_WEBHOOK_SECRET_FILE", expected_prefix="whsec_")
         payout = os.environ.get("AEA_THE402_PAYOUT_WALLET", DEFAULT_PAYOUT_WALLET)
         live_http = _flag("AEA_THE402_LIVE_HTTP")
         if live_http and not api_key:
@@ -747,6 +789,17 @@ class The402Adapter:
     @property
     def credentials_configured(self) -> bool:
         return bool(self._api_key) and not str(self._api_key).startswith("sk_test_")
+
+    @property
+    def capability(self) -> The402ProviderCapability:
+        return PROVIDER_CAPABILITY
+
+    def __repr__(self) -> str:
+        return (
+            "The402Adapter(role='provider', auth='scoped_api_key', "
+            f"payout_wallet={self._payout_wallet!r}, live_http={self._live_http!r}, "
+            f"credentials_configured={self.credentials_configured!r})"
+        )
 
     def set_payout_wallet(self, _value: str) -> None:
         raise MarketplaceError(HttpCode.FORBIDDEN, "payout wallet is operator-fixed")

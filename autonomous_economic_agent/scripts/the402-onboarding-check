@@ -1,0 +1,82 @@
+#!/usr/bin/env python3
+"""Sanitized, read-only the402 provider onboarding readiness check."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+from dataclasses import asdict
+
+from aea.marketplace.live.the402 import (
+    DEFAULT_PAYOUT_WALLET,
+    PROVIDER_CAPABILITY,
+    The402Adapter,
+    The402HttpsClient,
+    public_postings_demand,
+)
+
+
+def _json(response: object) -> dict[str, object]:
+    body = getattr(response, "body")
+    payload = json.loads(body.decode("utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError("the402 response was not an object")
+    return payload
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--authenticated",
+        action="store_true",
+        help="run provider account checks using protected credential files",
+    )
+    args = parser.parse_args()
+
+    client = The402HttpsClient()
+    try:
+        health = _json(client.request("GET", "/health"))
+        postings = _json(client.request("GET", "/v1/postings", query={"limit": "20"}))
+    finally:
+        client.close()
+
+    payout = os.environ.get("AEA_THE402_PAYOUT_WALLET", DEFAULT_PAYOUT_WALLET)
+    result: dict[str, object] = {
+        "marketplace": "the402",
+        "mode": "provider_read_only",
+        "capability": asdict(PROVIDER_CAPABILITY),
+        "platform": {
+            "status": health.get("status"),
+            "paused": health.get("paused"),
+            "pause_reason": health.get("pause_reason"),
+            "network": health.get("network"),
+        },
+        "payout_wallet": payout,
+        "credentials": {
+            "reference": PROVIDER_CAPABILITY.credential_reference,
+            "api_key_file_configured": bool(os.environ.get("AEA_THE402_API_KEY_FILE")),
+            "webhook_secret_file_configured": bool(os.environ.get("AEA_THE402_WEBHOOK_SECRET_FILE")),
+            "raw_secret_values_exposed": False,
+        },
+        "demand": public_postings_demand(postings),
+        "external_mutation": False,
+        "bid_placed": False,
+        "job_accepted": False,
+        "capital_moved": False,
+    }
+    if args.authenticated:
+        if health.get("paused") is True:
+            result["authenticated_probe"] = {
+                "ok": False,
+                "code": "PLATFORM_PAUSED",
+                "attempted": False,
+            }
+        else:
+            result["authenticated_probe"] = The402Adapter.from_env().read_only_operator_probe()
+    print(json.dumps(result, sort_keys=True, indent=2))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

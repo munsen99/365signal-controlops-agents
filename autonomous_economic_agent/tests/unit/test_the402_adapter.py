@@ -5,6 +5,7 @@ from __future__ import annotations
 import ast
 import inspect
 import json
+import os
 import time
 from decimal import Decimal
 from pathlib import Path
@@ -17,6 +18,7 @@ from aea.marketplace.live.the402 import (
     BASE_MAINNET_CHAIN_ID,
     BASE_MAINNET_USDC,
     DEFAULT_PAYOUT_WALLET,
+    PROVIDER_CAPABILITY,
     THE402_API_HOST,
     THE402_ORIGIN,
     FakeThe402Transport,
@@ -70,6 +72,8 @@ def test_credentials_remain_server_side(tmp_path: Path, monkeypatch: pytest.Monk
     secret_file = tmp_path / "the402_webhook"
     key_file.write_text("sk_fixture_not_for_model\n")
     secret_file.write_text("whsec_fixture_not_for_model\n")
+    key_file.chmod(0o600)
+    secret_file.chmod(0o600)
     monkeypatch.setenv("AEA_THE402_ENABLED", "1")
     monkeypatch.setenv("AEA_ENABLED_ADAPTERS", "the402")
     monkeypatch.setenv("AEA_THE402_API_KEY_FILE", str(key_file))
@@ -81,6 +85,70 @@ def test_credentials_remain_server_side(tmp_path: Path, monkeypatch: pytest.Monk
     assert "sk_fixture_not_for_model" not in dumped
     assert "whsec_fixture_not_for_model" not in dumped
     assert "sk_fixture_not_for_model" not in repr(adapter)
+
+
+def test_provider_capability_is_provider_only_and_model_safe() -> None:
+    capability = PROVIDER_CAPABILITY
+    assert capability.marketplace == "the402"
+    assert capability.role == "provider"
+    assert capability.settlement_chain == "base"
+    assert capability.settlement_asset == "USDC"
+    assert capability.payout_wallet == "external"
+    assert capability.auth == "scoped_api_key"
+    assert capability.buyer_flow == "disabled"
+    assert capability.arbitrary_signing is False
+    assert capability.typed_data_signing is False
+    assert capability.transaction_signing is False
+    assert capability.custody is False
+    assert capability.capital_spend is False
+    assert "secret" not in repr(capability).lower()
+
+
+def test_live_credentials_require_protected_files(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    api = tmp_path / "api-key"
+    webhook = tmp_path / "webhook-secret"
+    api.write_text("sk_provider_fixture_value\n")
+    webhook.write_text("whsec_fixture_value\n")
+    monkeypatch.setenv("AEA_THE402_ENABLED", "1")
+    monkeypatch.setenv("AEA_THE402_API_KEY_FILE", str(api))
+    monkeypatch.setenv("AEA_THE402_WEBHOOK_SECRET_FILE", str(webhook))
+    with pytest.raises(MarketplaceError, match="0600"):
+        The402Adapter.from_env()
+    api.chmod(0o600)
+    webhook.chmod(0o600)
+    adapter = The402Adapter.from_env()
+    assert adapter.credentials_configured is True
+    assert "sk_provider_fixture_value" not in repr(adapter)
+    assert "whsec_fixture_value" not in repr(adapter)
+
+
+def test_symlink_and_raw_environment_credentials_rejected(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = tmp_path / "target"
+    target.write_text("sk_provider_fixture_value\n")
+    target.chmod(0o600)
+    link = tmp_path / "link"
+    link.symlink_to(target)
+    monkeypatch.setenv("AEA_THE402_ENABLED", "1")
+    monkeypatch.setenv("AEA_THE402_API_KEY_FILE", str(link))
+    with pytest.raises(MarketplaceError, match="non-symlink"):
+        The402Adapter.from_env()
+    monkeypatch.delenv("AEA_THE402_API_KEY_FILE")
+    monkeypatch.setenv("AEA_THE402_API_KEY", "sk_provider_fixture_value")
+    with pytest.raises(MarketplaceError, match="environment are forbidden"):
+        The402Adapter.from_env()
+
+
+def test_credential_file_owner_check_fails_closed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    api = tmp_path / "api-key"
+    api.write_text("sk_provider_fixture_value\n")
+    api.chmod(0o600)
+    monkeypatch.setenv("AEA_THE402_ENABLED", "1")
+    monkeypatch.setenv("AEA_THE402_API_KEY_FILE", str(api))
+    monkeypatch.setenv("AEA_THE402_SECRET_UID", str(os.geteuid() + 1))
+    with pytest.raises(MarketplaceError, match="owner"):
+        The402Adapter.from_env()
 
 
 def test_no_wallet_signer_dependency() -> None:
@@ -102,6 +170,25 @@ def test_no_wallet_signer_dependency() -> None:
         The402Adapter(signer_token="nope", service_id="svc_x")  # type: ignore[call-arg]
     with pytest.raises((TypeError, ValueError)):
         The402Adapter(debit_token="nope", service_id="svc_x")  # type: ignore[call-arg]
+
+
+def test_buyer_and_signing_operations_do_not_exist() -> None:
+    adapter = _adapter()
+    for name in (
+        "purchase",
+        "fund",
+        "fund_escrow",
+        "checkout",
+        "deposit",
+        "approve",
+        "permit",
+        "sign",
+        "sign_message",
+        "sign_typed_data",
+        "sign_transaction",
+        "eip3009",
+    ):
+        assert not hasattr(adapter, name)
 
 
 def test_fixed_api_origin() -> None:

@@ -20,10 +20,14 @@ Pinned API origin: `https://api.the402.ai`.
 
 Expected operator files (never Git, never evidence, never dashboard, never model context):
 
-| Secret | Env | File env |
-|---|---|---|
-| Provider API key | `AEA_THE402_API_KEY` | `AEA_THE402_API_KEY_FILE` |
-| Webhook HMAC secret | `AEA_THE402_WEBHOOK_SECRET` | `AEA_THE402_WEBHOOK_SECRET_FILE` |
+| Secret | Protected file reference |
+|---|---|
+| Provider API key | `AEA_THE402_API_KEY_FILE` |
+| Webhook HMAC secret | `AEA_THE402_WEBHOOK_SECRET_FILE` |
+
+PR15.4 forbids raw secret-valued environment variables. Credential files must
+be regular non-symlinks, mode `0600`, and owned by `AEA_THE402_SECRET_UID`.
+The model-safe opaque reference is `the402/provider/default`.
 
 Public configuration:
 
