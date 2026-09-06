@@ -86,13 +86,21 @@ class ReadOnlyDiscoveryClient:
                 headers={"Accept": "application/json", "User-Agent": USER_AGENT},
             )
         except httpx.TimeoutException as exc:
-            raise MarketplaceError(HttpCode.TIMEOUT, "discovery timed out") from exc
+            raise MarketplaceError(HttpCode.TIMEOUT, f"{market} discovery timed out") from exc
         except httpx.HTTPError as exc:
-            raise MarketplaceError(HttpCode.NETWORK_FAILURE, "discovery transport failed") from exc
+            host = parsed.hostname or market
+            raise MarketplaceError(
+                HttpCode.NETWORK_FAILURE,
+                f"{market} discovery transport failed contacting {host}",
+            ) from exc
         if 300 <= response.status_code < 400:
             raise MarketplaceError(HttpCode.FORBIDDEN, "discovery redirect rejected")
         if response.status_code >= 400:
-            raise MarketplaceError(HttpCode.MARKETPLACE_UNAVAILABLE, "discovery HTTP error")
+            host = parsed.hostname or market
+            raise MarketplaceError(
+                HttpCode.MARKETPLACE_UNAVAILABLE,
+                f"{market} discovery HTTP {response.status_code} from {host}{path}",
+            )
         if len(response.content) > HTTP_BODY_MAX_BYTES:
             raise MarketplaceError(HttpCode.VALIDATION_ERROR, "discovery response too large")
         ctype = (response.headers.get("content-type") or "").split(";")[0].strip().lower()
@@ -227,13 +235,15 @@ def observations_workpnp(payload: dict[str, Any], *, now: datetime | None = None
         tags = item.get("tags") if isinstance(item.get("tags"), list) else []
         text = f"{item.get('title') or ''} {item.get('description') or ''} {item.get('acceptance_criteria') or ''}"
         github = "pull request" in text.lower() or "github" in text.lower()
+        listing_id = str(item.get("id") or "") or None
+        poster = str(item.get("poster_name") or item.get("poster_id") or listing_id or "") or None
         out.append(
             MarketObservation(
                 marketplace="workpnp",
                 observed_at=now,
                 source=source,
-                external_id=str(item.get("id") or "") or None,
-                poster_id=str(item.get("poster_name") or item.get("poster_id") or "") or None,
+                external_id=listing_id,
+                poster_id=poster,
                 category=",".join(str(tag) for tag in tags)[:64] or None,
                 title=str(item.get("title") or "")[:200] or None,
                 reward_usd=reward,

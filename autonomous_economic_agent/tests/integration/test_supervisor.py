@@ -27,6 +27,7 @@ from aea.supervisor.service import CallableSignerAdmin, create_app
 from aea.supervisor.state import MemorySupervisorStore, PostgresSupervisorStore, SupervisorState
 from aea.wallet.mock import MockWallet
 from aea.wallet.service import create_app as create_wallet_app
+from tests.dbutil import isolate_economic_ledger
 
 NOW = datetime(2026, 8, 21, 12, 0, 0, tzinfo=timezone.utc)
 
@@ -176,6 +177,7 @@ def pg_ledger():
         password=ADMIN_PW.read_text(encoding="utf-8").rstrip("\n"),
     )
     c.row_factory = dict_row
+    isolate_economic_ledger(c)
     c.execute("SET ROLE economic_app")
     c.execute("SET search_path TO economic")
     try:

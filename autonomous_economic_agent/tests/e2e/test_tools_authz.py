@@ -26,6 +26,7 @@ from aea.marketplace.intelligence import MarketObservation
 from aea.research.readonly import ReadOnlyWebService
 from aea.tools_client.http import ToolClient
 from aea.wallet.mock import MockWallet
+from tests.dbutil import isolate_economic_ledger
 
 ADMIN_PW = Path.home() / ".config/controlops/postgres/postgres_password"
 
@@ -58,7 +59,9 @@ PROFITABLE = "mock:job:profitable-summary-001"
 UNPROFITABLE = "mock:job:unprofitable-research-001"
 INJECTION = "mock:job:prompt-injection-001"
 FAKE = "mock:job:fake-payment-001"
+HIGH_COMPUTE = "mock:job:high-compute-001"
 PROHIBITED = "mock:job:prohibited-token-001"
+NETWORK = "mock:job:network-fail-001"
 
 
 @pytest.fixture
@@ -93,6 +96,7 @@ def conn():
         password=ADMIN_PW.read_text(encoding="utf-8").rstrip("\n"),
     )
     c.row_factory = dict_row
+    isolate_economic_ledger(c)
     c.execute("SET ROLE economic_app")
     c.execute("SET search_path TO economic")
     try:
@@ -528,7 +532,7 @@ def test_profitable_perform_submit_and_fake_payment(app, wallet: MockWallet) -> 
         json={"job_id": job_id, "idempotency_key": "perf-prof-0001"},
         headers=_auth(MODEL),
     ).json()
-    assert performed["ok"] is True
+    assert performed["ok"] is True, performed
     assert performed["deliverable_digest"]
     submitted = _request(
         app,
@@ -549,6 +553,19 @@ def test_profitable_perform_submit_and_fake_payment(app, wallet: MockWallet) -> 
     assert settled["status"] == "settled"
     assert settled["verified"] is True
 
+    fake_eval = _request(
+        app,
+        "POST",
+        "/v1/tools/evaluate_job",
+        json={
+            "opportunity_id": by_ref[FAKE]["opportunity_id"],
+            "idempotency_key": "eval-fake-0001",
+        },
+        headers=_auth(MODEL),
+    ).json()
+    assert fake_eval["accept_allowed"] is True
+    assert fake_eval["recommendation"] == "decline"
+    assert fake_eval["risk_veto"] is True
     fake_acc = _request(
         app,
         "POST",
@@ -559,30 +576,34 @@ def test_profitable_perform_submit_and_fake_payment(app, wallet: MockWallet) -> 
         },
         headers=_auth(MODEL),
     ).json()
-    fake_job = fake_acc["job_id"]
-    _request(
+    assert fake_acc["ok"] is False
+    assert fake_acc["code"] == "AGENT_RISK_VETO"
+    assert "fake_payment" in fake_acc["risk_factors"]
+    runaway_eval = _request(
         app,
         "POST",
-        "/v1/tools/perform_job",
-        json={"job_id": fake_job, "idempotency_key": "perf-fake-0001"},
-        headers=_auth(MODEL),
-    )
-    _request(
-        app,
-        "POST",
-        "/v1/tools/submit_work",
-        json={"job_id": fake_job, "idempotency_key": "sub-fake-0001"},
-        headers=_auth(MODEL),
-    )
-    fake_pay = _request(
-        app,
-        "POST",
-        "/v1/tools/check_payment",
-        json={"job_id": fake_job, "idempotency_key": "chk-fake-0001"},
+        "/v1/tools/evaluate_job",
+        json={
+            "opportunity_id": by_ref[HIGH_COMPUTE]["opportunity_id"],
+            "idempotency_key": "eval-runaway-0001",
+        },
         headers=_auth(MODEL),
     ).json()
-    assert fake_pay["code"] == "FAKE_PAYMENT"
-    assert fake_pay["verified"] is False
+    assert runaway_eval["accept_allowed"] is True
+    assert runaway_eval["risk_veto"] is True
+    runaway_acc = _request(
+        app,
+        "POST",
+        "/v1/tools/accept_job",
+        json={
+            "opportunity_id": by_ref[HIGH_COMPUTE]["opportunity_id"],
+            "idempotency_key": "acc-runaway-0001",
+        },
+        headers=_auth(MODEL),
+    ).json()
+    assert runaway_acc["ok"] is False
+    assert runaway_acc["code"] == "AGENT_RISK_VETO"
+    assert "runaway_cost" in runaway_acc["risk_factors"]
     assert wallet.get_balances()["USDC"] == Decimal("20.5")
 
 
@@ -676,6 +697,135 @@ def test_idempotency_conflict(app) -> None:
     assert first.json()["opportunity_id"] == replay.json()["opportunity_id"]
 
 
+def test_idempotency_semantics_for_mutating_economic_actions(app) -> None:
+    found = _request(app, "POST", "/v1/tools/find_jobs", json={"limit": 20}, headers=_auth(MODEL)).json()
+    by_ref = {j["external_reference"]: j for j in found["jobs"]}
+
+    denied = _request(
+        app,
+        "POST",
+        "/v1/tools/accept_job",
+        json={
+            "opportunity_id": by_ref[UNPROFITABLE]["opportunity_id"],
+            "idempotency_key": "idem-def-reject-0001",
+        },
+        headers=_auth(MODEL),
+    ).json()
+    assert denied["ok"] is False
+    replay_denied = _request(
+        app,
+        "POST",
+        "/v1/tools/accept_job",
+        json={
+            "opportunity_id": by_ref[UNPROFITABLE]["opportunity_id"],
+            "idempotency_key": "idem-def-reject-0001",
+        },
+        headers=_auth(MODEL),
+    ).json()
+    assert replay_denied["code"] == "IDEMPOTENT_REPLAY"
+    later = _request(
+        app,
+        "POST",
+        "/v1/tools/accept_job",
+        json={
+            "opportunity_id": by_ref[PROFITABLE]["opportunity_id"],
+            "idempotency_key": "idem-new-valid-0001",
+        },
+        headers=_auth(MODEL),
+    ).json()
+    assert later["ok"] is True, later
+
+    eval_key = "idem-changed-state-0001"
+    first_eval = _request(
+        app,
+        "POST",
+        "/v1/tools/evaluate_job",
+        json={"opportunity_id": by_ref[PROFITABLE]["opportunity_id"], "idempotency_key": eval_key},
+        headers=_auth(MODEL),
+    )
+    assert first_eval.status_code == 200
+    conflict = _request(
+        app,
+        "POST",
+        "/v1/tools/evaluate_job",
+        json={"opportunity_id": by_ref[UNPROFITABLE]["opportunity_id"], "idempotency_key": eval_key},
+        headers=_auth(MODEL),
+    ).json()
+    assert conflict["code"] == "IDEMPOTENCY_CONFLICT"
+    new_state = _request(
+        app,
+        "POST",
+        "/v1/tools/evaluate_job",
+        json={
+            "opportunity_id": by_ref[UNPROFITABLE]["opportunity_id"],
+            "idempotency_key": "idem-changed-state-0002",
+        },
+        headers=_auth(MODEL),
+    ).json()
+    assert new_state["code"] == "OK"
+
+    first_bypass = _request(
+        app,
+        "POST",
+        "/v1/tools/accept_job",
+        json={
+            "opportunity_id": by_ref[PROHIBITED]["opportunity_id"],
+            "idempotency_key": "idem-bypass-0001",
+        },
+        headers=_auth(MODEL),
+    ).json()
+    assert first_bypass["ok"] is False
+    second_bypass = _request(
+        app,
+        "POST",
+        "/v1/tools/accept_job",
+        json={
+            "opportunity_id": by_ref[PROHIBITED]["opportunity_id"],
+            "idempotency_key": "idem-bypass-0002",
+        },
+        headers=_auth(MODEL),
+    ).json()
+    assert second_bypass["ok"] is False
+    assert second_bypass["code"] in {"PROHIBITED_TOKEN", "PROMPT_INJECTION_DETECTED"}
+
+    network = _request(
+        app,
+        "POST",
+        "/v1/tools/accept_job",
+        json={
+            "opportunity_id": by_ref[NETWORK]["opportunity_id"],
+            "idempotency_key": "idem-net-accept-0001",
+        },
+        headers=_auth(MODEL),
+    ).json()
+    assert network["ok"] is True, network
+    performed = _request(
+        app,
+        "POST",
+        "/v1/tools/perform_job",
+        json={"job_id": network["job_id"], "idempotency_key": "idem-net-perf-0001"},
+        headers=_auth(MODEL),
+    ).json()
+    assert performed["ok"] is True
+    first_submit = _request(
+        app,
+        "POST",
+        "/v1/tools/submit_work",
+        json={"job_id": network["job_id"], "idempotency_key": "idem-net-submit-0001"},
+        headers=_auth(MODEL),
+    ).json()
+    assert first_submit["code"] == "NETWORK_FAILURE"
+    retry_submit = _request(
+        app,
+        "POST",
+        "/v1/tools/submit_work",
+        json={"job_id": network["job_id"], "idempotency_key": "idem-net-submit-0001"},
+        headers=_auth(MODEL),
+    ).json()
+    assert retry_submit["code"] == "NETWORK_FAILURE"
+    assert retry_submit.get("code") != "IDEMPOTENCY_CONFLICT"
+
+
 def test_record_decision_does_not_apply_control_change(app) -> None:
     response = _request(
         app,
@@ -740,6 +890,36 @@ def test_plugin_handlers_accept_hermes_positional_argument_dict(monkeypatch) -> 
     result = mod._handler_for("find_jobs")({"limit": 8, "url": "http://forbidden"})
     assert json.loads(result) == {"ok": True}
     assert captured == {"name": "find_jobs", "body": {"limit": 8}}
+
+
+def test_plugin_preserves_control_plane_http_error_body(monkeypatch) -> None:
+    import importlib.util
+    from io import BytesIO
+    from urllib.error import HTTPError
+
+    plugin = Path(__file__).resolve().parents[2] / "hermes_plugin" / "__init__.py"
+    spec = importlib.util.spec_from_file_location("economic_hermes_plugin_http", plugin)
+    assert spec and spec.loader
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    body = json.dumps(
+        {"ok": False, "code": "POLICY_REJECTED", "detail": "workpnp: no bounded non-binding message path"}
+    ).encode()
+
+    def boom(_req, timeout=None):  # type: ignore[no-untyped-def]
+        raise HTTPError(
+            "http://127.0.0.1:18700/v1/tools/send_message",
+            403,
+            "Forbidden",
+            None,
+            BytesIO(body),
+        )
+
+    monkeypatch.setattr(mod, "urlopen", boom)
+    monkeypatch.setattr(mod, "_model_token", lambda: "model-token")
+    result = mod._post_tool("send_message", {"idempotency_key": "plugin-http-0001"})
+    assert result["code"] == "POLICY_REJECTED"
+    assert "workpnp" in result["detail"]
 
 
 def test_lmstudio_wire_messages_have_valid_content(monkeypatch) -> None:

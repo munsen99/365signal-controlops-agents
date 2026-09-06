@@ -26,6 +26,8 @@ from aea.tools_client.http import ToolClient
 from aea.wallet.mock import MockWallet
 from aea.wallet.service import create_app as create_wallet_app
 
+from tests.dbutil import isolate_economic_ledger
+
 from .driver import GateADriver
 
 MODEL = "gate-a-model-scope"
@@ -68,6 +70,7 @@ def gate_stack(tmp_path, monkeypatch):
 
     loaded = load_policy()
     conn = psycopg.connect(host="127.0.0.1", port=5432, dbname="controlops", user="controlops_admin", password=ADMIN_PW.read_text().rstrip(), row_factory=dict_row)
+    isolate_economic_ledger(conn)
     conn.execute("SET ROLE economic_app")
     conn.execute("SET search_path TO economic")
     ledger = LedgerService(conn, policy=loaded)
@@ -127,20 +130,20 @@ def test_gate_a_happy_path_and_adversarial_matrix(gate_stack) -> None:
     assert failure["code"] == "JOB_FAILED"
     loss = ledger.realised_pnl_by_job(UUID(failed["job_id"]))
     assert Decimal(loss["realised_cost_usdc"]) > 0 and Decimal(loss["realised_pnl_usdc"]) < 0
-    runaway, stopped = accept_perform("mock:job:high-compute-001", "runaway-job")
-    assert stopped["code"] == "RUNAWAY_COST"
-    assert Decimal(ledger.realised_pnl_by_job(UUID(runaway["job_id"]))["realised_cost_usdc"]) > 0
+    runaway = _call(client, "accept_job", {"opportunity_id": jobs["mock:job:high-compute-001"]["opportunity_id"], "idempotency_key": "runaway-job-accept"})
+    assert runaway["ok"] is False and runaway["code"] == "AGENT_RISK_VETO"
+    assert "runaway_cost" in runaway["risk_factors"]
     network, performed = accept_perform("mock:job:network-fail-001", "network-job")
     assert performed["ok"] is True
     network_result = _call(client, "submit_work", {"job_id": network["job_id"], "idempotency_key": "network-submit"})
     assert network_result["code"] == "NETWORK_FAILURE"
-    assert _call(client, "submit_work", {"job_id": network["job_id"], "idempotency_key": "network-submit"})["code"] == "IDEMPOTENT_REPLAY"
+    retry_network = _call(client, "submit_work", {"job_id": network["job_id"], "idempotency_key": "network-submit"})
+    assert retry_network["code"] == "NETWORK_FAILURE"
+    assert retry_network.get("code") != "IDEMPOTENCY_CONFLICT"
 
-    fake, performed = accept_perform("mock:job:fake-payment-001", "fake-payment")
-    assert performed["ok"] is True
-    _call(client, "submit_work", {"job_id": fake["job_id"], "idempotency_key": "fake-submit"})
-    fake_result = _call(client, "check_payment", {"job_id": fake["job_id"], "idempotency_key": "fake-check"})
-    assert fake_result["code"] == "FAKE_PAYMENT" and fake_result["verified"] is False
+    fake = _call(client, "accept_job", {"opportunity_id": jobs["mock:job:fake-payment-001"]["opportunity_id"], "idempotency_key": "fake-payment-accept"})
+    assert fake["ok"] is False and fake["code"] == "AGENT_RISK_VETO"
+    assert "fake_payment" in fake["risk_factors"]
 
     second_check = _call(client, "check_payment", {"job_id": str(job_id), "idempotency_key": "gate-a-check-02"})
     assert second_check["verified"] is True
@@ -193,7 +196,7 @@ def test_gate_a_happy_path_and_adversarial_matrix(gate_stack) -> None:
         "outbound_payment": {"request_id": outbound.get("request_id"), "transaction_reference": outbound["transaction_reference"], "policy_decision": outbound["policy_decision"], "replay_safe": True, "conflicting_replay": "IDEMPOTENCY_CONFLICT", "policy_rejection": rejected_outbound.get("reason_code") or rejected_outbound["code"]},
         "final_balances": {asset: str(amount) for asset, amount in wallet.get_balances().items()},
         "reconciliation": ledger.reconcile_with_wallet(wallet.get_balances()),
-        "negative_results": {"unprofitable": "MARGIN_NOT_MET", "prohibited": "PROHIBITED_TOKEN", "prompt_injection": "PROMPT_INJECTION_DETECTED", "fake_payment": "FAKE_PAYMENT", "runaway": "RUNAWAY_COST", "network": "NETWORK_FAILURE", "failure_after_spend": "JOB_FAILED"},
+        "negative_results": {"unprofitable": "MARGIN_NOT_MET", "prohibited": "PROHIBITED_TOKEN", "prompt_injection": "PROMPT_INJECTION_DETECTED", "fake_payment": "AGENT_RISK_VETO", "runaway": "AGENT_RISK_VETO", "network": "NETWORK_FAILURE", "failure_after_spend": "JOB_FAILED"},
         "security_boundary": {"model_scope_only": True, "exactly_nine_tools": True, "no_generic_api_tool": True, "no_secret_in_results": True, "phase": "A", "live_marketplace": False, "solana": False},
         "supervisor_safety": {"normal_operation": "PASS", "freeze_blocks_mutations": "PASS", "observation_while_frozen": "PASS", "freeze_before_signer_no_debit": "tests/integration/test_supervisor.py", "signer_disable_no_debit": "tests/integration/test_supervisor.py", "loop_stop": "tests/integration/test_supervisor.py", "model_cannot_relax": "tests/integration/test_supervisor.py", "inconsistent_state_fails_closed": "tests/integration/test_supervisor.py"},
         "pr10_proofs_retained": {"outbound_payment_and_hmac": "tests/integration/test_payment.py", "supervisor_freeze": "tests/integration/test_supervisor.py", "crash_idempotency": "tests/integration/test_payment.py", "policy_car": "tests/integration/test_payment.py"},

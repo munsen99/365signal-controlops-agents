@@ -26,6 +26,7 @@ from aea.control.auth import (
     bearer_token,
 )
 from aea.control.freeze import inspect_control_safety, tool_is_mutating
+from aea.control.idempotency import should_store_idempotent_result
 from aea.control.plane import EconomicPlane
 from aea.control.schemas import TOOL_MODELS, RequestPaymentRequest
 from aea.hashing import canonical_json_hash
@@ -142,6 +143,7 @@ def _status_for(code: str) -> int:
         HttpCode.SIGNER_DISABLED: 200,
         HttpCode.LOOP_STOPPED: 200,
         HttpCode.POLICY_REJECTED: 200,
+        HttpCode.AGENT_RISK_VETO: 200,
         HttpCode.DUPLICATE_PAYMENT: 200,
         HttpCode.TIMEOUT: 200,
         HttpCode.WALLET_LEDGER_MISMATCH: 200,
@@ -440,9 +442,13 @@ class ControlService:
                 HttpCode.PROMPT_INJECTION_DETECTED,
                 HttpCode.POLICY_REJECTED,
                 HttpCode.TIMEOUT,
+                HttpCode.MARKETPLACE_UNAVAILABLE,
+                HttpCode.AGENT_RISK_VETO,
             }
             code = exc.code if exc.code in preserved else HttpCode.MARKETPLACE_UNAVAILABLE
             result = {"ok": False, "code": code}
+            if exc.message and exc.message != exc.code:
+                result["detail"] = exc.message
         except Exception:
             result = {"ok": False, "code": HttpCode.INTERNAL_ERROR}
         result.setdefault("ok", result.get("code") == HttpCode.OK)
@@ -452,7 +458,7 @@ class ControlService:
                 self._ledger.rollback()
             else:
                 self._ledger.commit()
-        if idem:
+        if idem and should_store_idempotent_result(result.get("code")):
             stored = dict(result)
             self._idem[(name, idem)] = (canonical_json_hash(body), stored)
         await _send_json(
@@ -924,6 +930,8 @@ def create_app_from_env() -> ControlService:
             configured_evm.pop("chain_id", None)
     configured_evm = {k: v for k, v in configured_evm.items() if v}
 
+    from aea.marketplace.transport import default_bounded_transports
+
     return create_app(
         model_token=model,
         freeze_path=freeze,
@@ -941,6 +949,7 @@ def create_app_from_env() -> ControlService:
         live_gate=live_gate,
         configured_solana=configured_solana,
         configured_evm=configured_evm,
+        engagement=EconomicEngagementService(transports=default_bounded_transports()),
     )
 
 

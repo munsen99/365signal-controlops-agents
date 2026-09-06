@@ -6,7 +6,7 @@ import re
 from decimal import Decimal
 
 from aea.config import PolicyDocument
-from aea.policy.reasons import ReasonCode
+from aea.policy.reasons import HttpCode, ReasonCode
 from aea.types import AeaBaseModel, PolicyInput, parse_unsigned_amount
 from pydantic import field_validator
 
@@ -123,4 +123,89 @@ def evaluate_job_accept(inp: JobAcceptInput, policy: PolicyDocument) -> JobAccep
         )
     return JobAcceptResult(
         allowed=True, reason_code=None, meets_required_margin=True
+    )
+
+
+_FAKE_PAYMENT_TEXT = re.compile(
+    r"claim payment without|without a wallet credit|fake[- ]payment|credits_wallet_on_submit",
+    re.I,
+)
+_RUNAWAY_TEXT = re.compile(
+    r"compute cap|runaway|exhaustive recompute|cost exceeds|unbounded compute",
+    re.I,
+)
+_SUSPICIOUS_TEXT = re.compile(
+    r"ignore constitution|force\s*=\s*true|disable the supervisor|reveal .{0,40}token",
+    re.I,
+)
+_CONTRADICTORY_TEXT = re.compile(
+    r"guaranteed payment|payment is certain|risk[- ]free",
+    re.I,
+)
+HIGH_DISPUTE_RATE = Decimal("0.400000")
+
+
+class AgentRiskInput(AeaBaseModel):
+    expected_revenue_usdc: Decimal
+    expected_cost_usdc: Decimal
+    probability_payment: float
+    max_job_compute_usdc: Decimal
+    worker: str = ""
+    credits_wallet_on_submit: bool = True
+    completed: int = 0
+    disputed: int = 0
+    flags: list[str] = []
+    title: str = ""
+    description_preview: str = ""
+    payment_asset: str = "USDC"
+
+    @field_validator("expected_revenue_usdc", "expected_cost_usdc", "max_job_compute_usdc", mode="before")
+    @classmethod
+    def _money(cls, value: object) -> Decimal:
+        return parse_unsigned_amount(value)
+
+
+class AgentRiskResult(AeaBaseModel):
+    passed: bool
+    reason_code: str | None
+    factors: list[str]
+
+
+def evaluate_agent_risk(inp: AgentRiskInput) -> AgentRiskResult:
+    """Economic risk judgement above policy permission.
+
+    ``accept_allowed`` from :func:`evaluate_job_accept` means permitted, not
+    recommended. This layer may veto on evidence; it cannot override a hard
+    policy rejection.
+    """
+    factors: list[str] = []
+    blob = f"{inp.title}\n{inp.description_preview}"
+    flags = {str(flag) for flag in inp.flags}
+    if inp.expected_cost_usdc > inp.max_job_compute_usdc:
+        factors.append("cost_cap_exceeded")
+    if inp.worker == "runaway_loop" or "runaway" in flags or _RUNAWAY_TEXT.search(blob):
+        factors.append("runaway_cost")
+    sample = inp.completed + inp.disputed
+    dispute_rate = (Decimal(inp.disputed) / Decimal(sample)) if sample else Decimal("0")
+    if dispute_rate >= HIGH_DISPUTE_RATE or (inp.disputed >= 2 and inp.disputed >= inp.completed):
+        factors.append("high_dispute_rate")
+    if inp.completed == 0 and inp.disputed > 0:
+        factors.append("poor_counterparty_reputation")
+    if not inp.credits_wallet_on_submit or _FAKE_PAYMENT_TEXT.search(blob) or "fake_payment" in flags:
+        factors.append("fake_payment")
+    if "prompt_injection" in flags or _SUSPICIOUS_TEXT.search(blob):
+        factors.append("suspicious_listing_text")
+    if _CONTRADICTORY_TEXT.search(blob):
+        factors.append("contradictory_listing_text")
+    expected_value = (inp.expected_revenue_usdc * Decimal(str(inp.probability_payment))) - inp.expected_cost_usdc
+    if expected_value < 0:
+        factors.append("negative_expected_value")
+    if not inp.credits_wallet_on_submit or inp.payment_asset != "USDC":
+        factors.append("settlement_risk")
+    if not factors:
+        return AgentRiskResult(passed=True, reason_code=None, factors=[])
+    return AgentRiskResult(
+        passed=False,
+        reason_code=HttpCode.AGENT_RISK_VETO,
+        factors=sorted(set(factors)),
     )

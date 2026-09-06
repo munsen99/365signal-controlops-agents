@@ -28,8 +28,9 @@ HTTP_BODY_MAX_BYTES = 262144
 MAX_REDIRECTS = 3
 MAX_RESULTS = 8
 USER_AGENT = "aea-readonly-web/1"
-SEARCH_ORIGIN = "https://html.duckduckgo.com"
-SEARCH_PATH = "/html/"
+SEARCH_ORIGIN = "https://lite.duckduckgo.com"
+SEARCH_PATH = "/lite/"
+SEARCH_ORIGINS = frozenset({SEARCH_ORIGIN, "https://html.duckduckgo.com"})
 ALLOWED_SCHEMES = frozenset({"http", "https"})
 MUTATING_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE", "CONNECT", "TRACE", "OPTIONS"})
 SAFE_METHODS = frozenset({"GET", "HEAD"})
@@ -77,7 +78,14 @@ _SNIPPET = re.compile(
     r'<a[^>]+class="[^"]*result__snippet[^"]*"[^>]*>(.*?)</a>',
     re.IGNORECASE | re.DOTALL,
 )
+_ANCHOR = re.compile(r"<a\b([^>]*)>(.*?)</a>", re.IGNORECASE | re.DOTALL)
+_ATTR = re.compile(r"""([^\s=]+)\s*=\s*("([^"]*)"|'([^']*)')""")
+_SNIPPET_LITE = re.compile(
+    r"""<(?:td|a)[^>]+class=['"][^'"]*result-snippet[^'"]*['"][^>]*>(.*?)</(?:td|a)>""",
+    re.IGNORECASE | re.DOTALL,
+)
 _TAG = re.compile(r"<[^>]+>")
+_AD_SKIP = re.compile(r"y\.js|ad_provider|ads-by-microsoft|duckduckgo-help-pages", re.I)
 
 
 class _HTMLText(HTMLParser):
@@ -260,7 +268,8 @@ class ReadOnlyWebService:
             if _blocked_ip(literal):
                 raise MarketplaceError(HttpCode.FORBIDDEN, "private/local address rejected")
         else:
-            if allow_search_origin and f"{parsed.scheme}://{host}" == SEARCH_ORIGIN:
+            origin = f"{parsed.scheme.lower()}://{host}"
+            if allow_search_origin and origin in SEARCH_ORIGINS:
                 return urlunsplit((parsed.scheme.lower(), parsed.netloc.lower(), parsed.path, parsed.query, ""))
             for address in self._resolve(host):
                 ip = _ip(address)
@@ -282,6 +291,7 @@ class ReadOnlyWebService:
         current = self.validate_public_http_url(url, allow_search_origin=allow_search_origin)
         hops = 0
         while True:
+            host = urlsplit(current).hostname or "web-origin"
             try:
                 response = self._client.request(
                     "GET",
@@ -294,9 +304,12 @@ class ReadOnlyWebService:
                     },
                 )
             except httpx.TimeoutException as exc:
-                raise MarketplaceError(HttpCode.TIMEOUT, "web research timed out") from exc
+                raise MarketplaceError(HttpCode.TIMEOUT, f"web research timed out contacting {host}") from exc
             except httpx.HTTPError as exc:
-                raise MarketplaceError(HttpCode.NETWORK_FAILURE, "web research transport failed") from exc
+                raise MarketplaceError(
+                    HttpCode.NETWORK_FAILURE,
+                    f"web research transport failed contacting {host}",
+                ) from exc
             if 300 <= response.status_code < 400:
                 location = response.headers.get("location")
                 if not location:
@@ -307,8 +320,19 @@ class ReadOnlyWebService:
                 nxt = urljoin(current, location)
                 current = self.validate_public_http_url(nxt)
                 continue
+            if response.status_code == 202:
+                raise MarketplaceError(
+                    HttpCode.MARKETPLACE_UNAVAILABLE,
+                    f"search origin HTTP 202 challenge from {host}",
+                )
             if response.status_code >= 400:
-                raise MarketplaceError(HttpCode.NETWORK_FAILURE, "web research HTTP error")
+                if response.status_code == 404:
+                    code = HttpCode.NOT_FOUND
+                elif response.status_code >= 500:
+                    code = HttpCode.MARKETPLACE_UNAVAILABLE
+                else:
+                    code = HttpCode.FORBIDDEN
+                raise MarketplaceError(code, f"web research HTTP {response.status_code} from {host}")
             if len(response.content) > HTTP_BODY_MAX_BYTES:
                 raise MarketplaceError(HttpCode.VALIDATION_ERROR, "web response too large")
             ctype = (response.headers.get("content-type") or "").split(";")[0].strip().lower()
@@ -324,18 +348,27 @@ class ReadOnlyWebService:
     def _parse_search(self, html: str, limit: int) -> list[dict[str, Any]]:
         if not isinstance(html, str):
             raise MarketplaceError(HttpCode.VALIDATION_ERROR, "malformed search result")
-        hrefs = _RESULT_HREF.findall(html)
+        pairs = _RESULT_HREF.findall(html)
+        if not pairs:
+            pairs = _lite_result_pairs(html)
         snippets = [_strip_tags(item).strip() for item in _SNIPPET.findall(html)]
+        if not snippets:
+            snippets = [_strip_tags(item).strip() for item in _SNIPPET_LITE.findall(html)]
         results: list[dict[str, Any]] = []
-        for index, (href, title_html) in enumerate(hrefs):
+        for index, (href, title_html) in enumerate(pairs):
             if len(results) >= limit:
                 break
-            resolved = self._unwrap_search_url(unquote(href.strip()))
+            title_plain = _strip_tags(title_html).strip()
+            if title_plain.lower() in {"more info", "more information"}:
+                continue
+            resolved = self._unwrap_search_url(unquote(href.strip().replace("&amp;", "&")))
+            if _AD_SKIP.search(resolved):
+                continue
             try:
                 safe_url = self.validate_public_http_url(resolved)
             except MarketplaceError:
                 continue
-            title = sanitise_web_text(_strip_tags(title_html).strip(), max_chars=200)
+            title = sanitise_web_text(title_plain, max_chars=200)
             snippet_raw = snippets[index] if index < len(snippets) else ""
             snippet = sanitise_web_text(snippet_raw, max_chars=400)
             hostile = title.prompt_injection or snippet.prompt_injection
@@ -354,8 +387,30 @@ class ReadOnlyWebService:
     def _unwrap_search_url(self, href: str) -> str:
         if href.startswith("//"):
             href = "https:" + href
-        parsed = urlsplit(href)
+        parsed = urlsplit(href.replace("&amp;", "&"))
         query = parse_qs(parsed.query)
         if "uddg" in query and query["uddg"]:
             return unquote(query["uddg"][0])
         return href
+
+
+def _anchor_attrs(blob: str) -> dict[str, str]:
+    out: dict[str, str] = {}
+    for match in _ATTR.finditer(blob):
+        value = match.group(3) if match.group(3) is not None else match.group(4)
+        out[match.group(1).lower()] = value or ""
+    return out
+
+
+def _lite_result_pairs(html: str) -> list[tuple[str, str]]:
+    pairs: list[tuple[str, str]] = []
+    for attrs_blob, inner in _ANCHOR.findall(html):
+        attrs = _anchor_attrs(attrs_blob)
+        classes = attrs.get("class") or ""
+        if "result-link" not in classes and "result__a" not in classes:
+            continue
+        href = attrs.get("href") or ""
+        if not href:
+            continue
+        pairs.append((href, inner))
+    return pairs

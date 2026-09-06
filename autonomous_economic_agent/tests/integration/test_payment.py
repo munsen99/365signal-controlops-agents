@@ -26,6 +26,7 @@ from aea.signer.mock import MockSigner
 from aea.signer.service import AsgiWalletDebit, create_app as create_signer_app
 from aea.wallet.mock import MockWallet, new_tx_id
 from aea.wallet.service import create_app as create_wallet_app
+from tests.dbutil import isolate_economic_ledger
 
 NOW = datetime(2026, 8, 21, 12, 0, 0, tzinfo=timezone.utc)
 MODEL = "model-token-pr10"
@@ -89,6 +90,7 @@ def conn():
         password=ADMIN_PW.read_text(encoding="utf-8").rstrip("\n"),
     )
     c.row_factory = dict_row
+    isolate_economic_ledger(c)
     c.execute("SET ROLE economic_app")
     c.execute("SET search_path TO economic")
     try:
@@ -504,35 +506,8 @@ def test_fake_payment_is_not_revenue(stack) -> None:
         json={"opportunity_id": oid, "idempotency_key": f"acc-fake-{uuid4().hex[:8]}"},
         headers=_auth(MODEL),
     ).json()
-    if not job.get("ok"):
-        pytest.skip("fake-payment fixture not accepted under current margin")
-    _request(
-        stack["control"],
-        "POST",
-        "/v1/tools/perform_job",
-        json={"job_id": job["job_id"], "idempotency_key": f"perf-fake-{uuid4().hex[:8]}"},
-        headers=_auth(MODEL),
-    )
-    _request(
-        stack["control"],
-        "POST",
-        "/v1/tools/submit_work",
-        json={"job_id": job["job_id"], "idempotency_key": f"sub-fake-{uuid4().hex[:8]}"},
-        headers=_auth(MODEL),
-    )
-    check = _request(
-        stack["control"],
-        "POST",
-        "/v1/tools/check_payment",
-        json={"job_id": job["job_id"], "idempotency_key": f"chk-fake-{uuid4().hex[:8]}"},
-        headers=_auth(MODEL),
-    ).json()
-    assert check["code"] == "FAKE_PAYMENT"
-    revs = stack["ledger"]._conn.execute(
-        "SELECT count(*) AS n FROM revenues WHERE job_id = %s",
-        (job["job_id"],),
-    ).fetchone()
-    assert int(revs["n"]) == 0
+    assert job.get("ok") is False
+    assert job.get("code") == "AGENT_RISK_VETO"
 
 
 def test_control_rejects_hmac_and_debit_in_constructor(freeze_dir) -> None:
@@ -620,7 +595,7 @@ def test_job_accept_respects_capital_at_risk(stack) -> None:
     oid = next(
         j["opportunity_id"]
         for j in found["jobs"]
-        if j["external_reference"] == "mock:job:fake-payment-001"
+        if j["external_reference"] == "mock:job:network-fail-001"
     )
     blocked = _request(
         stack["control"],

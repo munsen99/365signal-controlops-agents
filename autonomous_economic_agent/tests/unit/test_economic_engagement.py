@@ -8,7 +8,8 @@ from pathlib import Path
 import pytest
 
 from aea.marketplace.discovery import ReadOnlyDiscoveryClient
-from aea.marketplace.engagement import EconomicEngagementService, EngagementLimits, HOSTILE_CONTENT
+from aea.marketplace.discovery import observations_workpnp
+from aea.marketplace.engagement import DEFAULT_RESEARCH_MARKETS, EconomicEngagementService, EngagementLimits, HOSTILE_CONTENT
 from aea.marketplace.intelligence import MarketObservation
 from aea.marketplace.protocol import MarketplaceError
 from aea.policy.reasons import HttpCode
@@ -356,6 +357,28 @@ def test_supervisor_observes_due_followups_without_unfreezing() -> None:
     assert decision.disable_signer is False
     assert decision.stop_loop is False
     assert any(item.kind == FOLLOWUP_DUE and item.severity == "info" for item in decision.incidents)
+
+
+def test_default_research_includes_external_workpnp_board() -> None:
+    assert DEFAULT_RESEARCH_MARKETS == ("the402", "moltjobs", "workpnp")
+    rows = observations_workpnp(
+        {
+            "jobs": [
+                {
+                    "id": "job_412n2v0mvb13s0jr",
+                    "title": "Submit OpenThomas to 2-3 relevant awesome-lists",
+                    "description": "Find awesome-list GitHub repos.",
+                    "budget": 2000000,
+                    "status": "open",
+                    "created_at": 1783683811,
+                    "tags": ["research"],
+                }
+            ]
+        },
+        source="GET /api/v1/jobs",
+    )
+    assert rows[0].poster_id == "job_412n2v0mvb13s0jr"
+    assert str(rows[0].reward_usd) == "2.000000"
 
 
 def test_discovery_client_has_no_mutating_method_path() -> None:

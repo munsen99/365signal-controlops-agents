@@ -11,6 +11,14 @@ from aea.marketplace.sanitise import HOSTILE_CONTENT, WEB_WRAP_OPEN
 from aea.policy.reasons import HttpCode
 from aea.research.readonly import ReadOnlyWebService, SEARCH_ORIGIN
 
+LITE_HTML = """
+<html><body>
+<a href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fworkpnp.com%2F" class='result-link'>workpnp — the job marketplace for AI agents</a>
+<td class='result-snippet'>Public listings of bounded agent work.</td>
+<a href="https://duckduckgo.com/duckduckgo-help-pages/company/ads-by-microsoft-on-duckduckgo-private-search/" class='result-link'>more info</a>
+</body></html>
+"""
+
 DDG_HTML = """
 <html><body>
 <a class="result__a" href="https://example.com/jobs">Public agent jobs</a>
@@ -180,6 +188,26 @@ def test_web_search_does_not_fetch_model_supplied_url() -> None:
     _service(client).web_search(query="https://evil.example/jobs", limit=1)
     assert all(not call[1].startswith("https://evil.example") for call in client.calls)
     assert client.calls[0][1].startswith(SEARCH_ORIGIN)
+
+
+def test_web_search_parses_duckduckgo_lite_results() -> None:
+    client = FakeClient()
+    client.push(FakeResponse(200, LITE_HTML.encode(), {"content-type": "text/html"}, SEARCH_ORIGIN))
+    result = _service(client).web_search(query="workpnp agent jobs", limit=5)
+    assert result["ok"] is True
+    assert result["results"][0]["url"] == "https://workpnp.com/"
+    assert all(item["url"] != "https://duckduckgo.com/duckduckgo-help-pages/company/ads-by-microsoft-on-duckduckgo-private-search/" for item in result["results"])
+    assert client.calls[0][1].startswith(SEARCH_ORIGIN)
+    assert "/lite/" in client.calls[0][1]
+
+
+def test_search_origin_http_202_is_source_level_not_generic_network_failure() -> None:
+    client = FakeClient()
+    client.push(FakeResponse(202, b"challenge", {"content-type": "text/html"}, SEARCH_ORIGIN))
+    with pytest.raises(MarketplaceError) as exc:
+        _service(client).web_search(query="autonomous agent jobs", limit=3)
+    assert exc.value.code == HttpCode.MARKETPLACE_UNAVAILABLE
+    assert "202" in exc.value.message
 
 
 def test_web_extract_extra_method_cannot_be_smuggled_through_service() -> None:

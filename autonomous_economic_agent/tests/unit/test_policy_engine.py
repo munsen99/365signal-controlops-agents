@@ -11,7 +11,7 @@ from pydantic import ValidationError
 
 from aea.config import load_policy
 from aea.policy.engine import evaluate
-from aea.policy.risk import JobAcceptInput, evaluate_job_accept
+from aea.policy.risk import AgentRiskInput, JobAcceptInput, evaluate_agent_risk, evaluate_job_accept
 from aea.types import PolicyInput
 
 NOW = datetime(2026, 8, 21, 12, 0, 0, tzinfo=timezone.utc)
@@ -351,6 +351,82 @@ def test_job_accept_frozen(loaded) -> None:
         loaded.document,
     )
     assert result.reason_code == "FROZEN"
+
+
+def _risk(**overrides) -> AgentRiskInput:
+    body = {
+        "expected_revenue_usdc": "0.500000",
+        "expected_cost_usdc": "0.020000",
+        "probability_payment": 0.9,
+        "max_job_compute_usdc": "0.500000",
+        "worker": "summarise_canned",
+        "credits_wallet_on_submit": True,
+        "completed": 12,
+        "disputed": 0,
+        "flags": [],
+        "title": "Summarise a public-domain paragraph",
+        "description_preview": "Summarise the lighthouse paragraph. Payment in USDC on submission.",
+        "payment_asset": "USDC",
+    }
+    body.update(overrides)
+    return AgentRiskInput.model_validate(body)
+
+
+def test_agent_risk_passes_clean_profitable_job() -> None:
+    result = evaluate_agent_risk(_risk())
+    assert result.passed is True
+    assert result.reason_code is None
+
+
+def test_agent_risk_vetoes_runaway_cost_style_job() -> None:
+    result = evaluate_agent_risk(
+        _risk(
+            expected_revenue_usdc="2.000000",
+            expected_cost_usdc="0.600000",
+            worker="runaway_loop",
+            title="Exhaustive recompute",
+            description_preview="Recompute a large table. Stated compute cost exceeds the job compute cap.",
+        )
+    )
+    assert result.passed is False
+    assert result.reason_code == "AGENT_RISK_VETO"
+    assert "runaway_cost" in result.factors
+    assert "cost_cap_exceeded" in result.factors
+
+
+def test_agent_risk_vetoes_high_dispute_fake_payment_style_job() -> None:
+    result = evaluate_agent_risk(
+        _risk(
+            credits_wallet_on_submit=False,
+            completed=2,
+            disputed=2,
+            title="Catalogue a short abstract",
+            description_preview="Catalogue the abstract. Counterparty will claim payment without a wallet credit.",
+        )
+    )
+    assert result.passed is False
+    assert "fake_payment" in result.factors
+    assert "high_dispute_rate" in result.factors
+    assert "settlement_risk" in result.factors
+
+
+def test_agent_risk_cannot_be_used_to_override_policy() -> None:
+    policy = evaluate_job_accept(
+        JobAcceptInput.model_validate(
+            {
+                "expected_revenue_usdc": "0.010000",
+                "expected_cost_usdc": "0.500000",
+                "probability_payment": 0.9,
+                "open_jobs": 0,
+                "frozen": False,
+            }
+        ),
+        load_policy().document,
+    )
+    risk = evaluate_agent_risk(_risk(expected_revenue_usdc="0.010000", expected_cost_usdc="0.500000"))
+    assert policy.allowed is False
+    assert policy.reason_code == "MARGIN_NOT_MET"
+    assert risk.passed is False
 
 
 def test_engine_does_not_import_llm_or_wallet() -> None:

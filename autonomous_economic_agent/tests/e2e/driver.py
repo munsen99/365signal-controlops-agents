@@ -59,7 +59,7 @@ class GateADriver:
                 {
                     "opportunity_id": job["opportunity_id"],
                     "decision_type": "evaluate",
-                    "decision": "accept" if evaluation.get("accept_allowed") else "decline",
+                    "decision": "accept" if evaluation.get("recommendation") == "accept" else "decline",
                     "reasoning_summary": str(
                         evaluation.get("reason_code") or evaluation.get("recommendation")
                     ),
@@ -67,10 +67,10 @@ class GateADriver:
                 },
             )
             self.result.decisions.append(decision)
-            if selected is None and evaluation.get("accept_allowed") is True:
+            if selected is None and evaluation.get("recommendation") == "accept":
                 selected = (job, evaluation)
         if selected is None:
-            raise AssertionError("fixture catalogue contains no policy-permitted profitable job")
+            raise AssertionError("fixture catalogue contains no policy-and-risk permitted profitable job")
         job, evaluation = selected
         accepted = self._call(
             "accept_job",

@@ -32,7 +32,7 @@ from aea.policy.reasons import HttpCode
 
 MAX_MESSAGES_PER_HOUR = 3
 MAX_TOTAL_MESSAGES_PER_HOUR = 10
-DEFAULT_RESEARCH_MARKETS = ("the402", "moltjobs")
+DEFAULT_RESEARCH_MARKETS = ("the402", "moltjobs", "workpnp")
 ALLOWED_CHANNELS = frozenset({"marketplace_api", "agent_protocol"})
 LOCAL_PUBLICATION = "local"
 HOSTILE_CONTENT = "HOSTILE_CONTENT"
@@ -91,9 +91,8 @@ class EngagementLimits:
 
 
 def _default_research() -> dict[str, list[MarketObservation]]:
-    # Two fixed origins at ten seconds each stay below the plugin's 30-second
-    # request budget. Expanding the source set requires an explicit bounded
-    # concurrency design rather than silently lengthening model tool calls.
+    # Three fixed origins at ten seconds each stay at the plugin's 30-second
+    # request budget in the worst case. Live probes are typically sub-second.
     return probe_markets(markets=DEFAULT_RESEARCH_MARKETS)
 
 

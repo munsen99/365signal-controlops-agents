@@ -69,6 +69,9 @@ def conn():
         password=ADMIN_PW.read_text(encoding="utf-8").rstrip("\n"),
     )
     c.row_factory = dict_row
+    from tests.dbutil import isolate_economic_ledger
+
+    isolate_economic_ledger(c)
     c.execute("SET ROLE economic_app")
     c.execute("SET search_path TO economic")
     try:

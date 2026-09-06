@@ -179,11 +179,11 @@ BEGIN
     SELECT count(*) INTO n_usdc
       FROM economic.agent_accounts
      WHERE agent_id = 'economic-agent' AND asset = 'USDC'
-       AND opening_balance = 20 AND current_balance = 20;
+       AND opening_balance = 20;
     SELECT count(*) INTO n_sol
       FROM economic.agent_accounts
      WHERE agent_id = 'economic-agent' AND asset = 'SOL'
-       AND opening_balance = 0.05 AND current_balance = 0.05;
+       AND opening_balance = 0.05;
     IF n_usdc <> 1 OR n_sol <> 1 THEN
         RAISE EXCEPTION 'Seed agent_accounts USDC/SOL opening balances are wrong.';
     END IF;

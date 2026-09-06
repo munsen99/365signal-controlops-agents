@@ -71,13 +71,14 @@ def probe_markets(
         for market in markets:
             try:
                 out[market] = probe_public_board(client, market, now=now)
-            except MarketplaceError:
+            except MarketplaceError as exc:
+                reason = exc.message if exc.message and exc.message != exc.code else "public_probe_failed"
                 out[market] = [
                     MarketObservation(
                         marketplace=market,
                         observed_at=now,
-                        source="discovery_blocked",
-                        ineligibility_reason="public_probe_failed",
+                        source=f"discovery_blocked:{exc.code}",
+                        ineligibility_reason=str(reason)[:200],
                         vendor_clarification_required=True,
                     )
                 ]

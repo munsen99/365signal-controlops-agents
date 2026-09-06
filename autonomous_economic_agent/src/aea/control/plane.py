@@ -24,7 +24,7 @@ from aea.ledger.service import LedgerService
 from aea.marketplace.protocol import DiscoveredJob, MarketplaceAdapter, MarketplaceError
 from aea.payment.service import PaymentOrchestrator
 from aea.policy.reasons import HttpCode, ReasonCode
-from aea.policy.risk import JobAcceptInput, evaluate_job_accept
+from aea.policy.risk import AgentRiskInput, JobAcceptInput, evaluate_agent_risk, evaluate_job_accept
 from aea.types import format_amount
 from aea.workers.registry import run_worker
 
@@ -39,6 +39,7 @@ _PERMANENT_DECLINE = frozenset(
         ReasonCode.PROHIBITED_DESTINATION,
         HttpCode.POLICY_REJECTED,
         ReasonCode.OPEN_JOBS_EXCEEDED,
+        HttpCode.AGENT_RISK_VETO,
     }
 )
 
@@ -98,8 +99,17 @@ class EconomicPlane:
                 HttpCode.NETWORK_FAILURE,
                 HttpCode.NOT_FOUND,
                 HttpCode.CONFLICT,
+                HttpCode.FORBIDDEN,
+                HttpCode.VALIDATION_ERROR,
+                HttpCode.PROMPT_INJECTION_DETECTED,
+                HttpCode.POLICY_REJECTED,
+                HttpCode.TIMEOUT,
+                HttpCode.MARKETPLACE_UNAVAILABLE,
             } else HttpCode.MARKETPLACE_UNAVAILABLE
-            return {"ok": False, "code": code}
+            payload: dict[str, Any] = {"ok": False, "code": code}
+            if exc.message and exc.message != exc.code:
+                payload["detail"] = exc.message
+            return payload
         except Exception:
             return {"ok": False, "code": HttpCode.INTERNAL_ERROR}
 
@@ -212,7 +222,35 @@ class EconomicPlane:
             pass
         margin = revenue - cost
         bps = int((margin / cost) * 10000) if cost > 0 else 0
-        rec = "accept" if accept.allowed and not blockers else "decline"
+        reputation = dumped.get("counterparty_reputation") or {}
+        risk = evaluate_agent_risk(
+            AgentRiskInput.model_validate(
+                {
+                    "expected_revenue_usdc": format_amount(revenue),
+                    "expected_cost_usdc": format_amount(cost),
+                    "probability_payment": prob,
+                    "max_job_compute_usdc": format_amount(
+                        self._policy.document.limits.max_job_compute_usdc
+                    ),
+                    "worker": dumped.get("worker") or "",
+                    "credits_wallet_on_submit": bool(dumped.get("credits_wallet_on_submit", True)),
+                    "completed": int(reputation.get("completed") or 0),
+                    "disputed": int(reputation.get("disputed") or 0),
+                    "flags": flags,
+                    "title": dumped.get("title") or "",
+                    "description_preview": dumped.get("untrusted_description_preview") or "",
+                    "payment_asset": asset,
+                }
+            )
+        )
+        mission_codes = {
+            ReasonCode.CAPITAL_AT_RISK_EXCEEDED,
+            ReasonCode.OPEN_JOBS_EXCEEDED,
+            ReasonCode.FROZEN,
+        }
+        mission_passed = not any(code in mission_codes for code in blockers) and not safety.frozen
+        # accept_allowed is policy permission, not a recommendation.
+        rec = "accept" if accept.allowed and mission_passed and risk.passed and not blockers else "decline"
         return {
             "ok": True,
             "code": HttpCode.OK,
@@ -226,10 +264,13 @@ class EconomicPlane:
             "expected_margin_bps": bps,
             "probability_completion": 0.95,
             "probability_payment": prob,
-            "risk_score": 0.12,
-            "risk_factors": flags or ["none"],
+            "risk_score": 0.12 if risk.passed else 0.85,
+            "risk_factors": risk.factors or flags or ["none"],
+            "risk_veto": not risk.passed,
+            "risk_reason_code": risk.reason_code,
             "meets_required_margin": accept.meets_required_margin,
             "policy_blockers": blockers,
+            "mission_constraints_passed": mission_passed,
             "recommendation": rec,
             "accept_allowed": accept.allowed,
             "reason_code": accept.reason_code,
@@ -263,6 +304,28 @@ class EconomicPlane:
                     )
                 except LedgerError:
                     pass
+            return {
+                "ok": False,
+                "code": code,
+                "opportunity_id": str(req.opportunity_id),
+            }
+        if evaluation.get("risk_veto"):
+            code = evaluation.get("risk_reason_code") or HttpCode.AGENT_RISK_VETO
+            if code in _PERMANENT_DECLINE:
+                try:
+                    self._ledger.set_opportunity_decision(
+                        req.opportunity_id, "declined", reason=str(code)
+                    )
+                except LedgerError:
+                    pass
+            return {
+                "ok": False,
+                "code": code,
+                "opportunity_id": str(req.opportunity_id),
+                "risk_factors": evaluation.get("risk_factors") or [],
+            }
+        if not evaluation.get("mission_constraints_passed"):
+            code = ReasonCode.CAPITAL_AT_RISK_EXCEEDED
             return {
                 "ok": False,
                 "code": code,

@@ -11,7 +11,7 @@ import os
 import uuid
 from pathlib import Path
 from typing import Any
-from urllib.error import URLError
+from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 NINE_TOOLS: tuple[str, ...] = (
@@ -64,27 +64,37 @@ _SCHEMAS: dict[str, dict[str, Any]] = {
     },
     "evaluate_job": {
         "name": "evaluate_job",
-        "description": "Server-side deterministic evaluation of an opportunity. Authoritative vs model reasoning.",
+        "description": "Server-side evaluation. accept_allowed means policy-permitted, not recommended. Accept only if policy, mission constraints, and agent risk judgement all pass.",
         "parameters": {
             "type": "object",
             "additionalProperties": False,
             "required": ["opportunity_id", "idempotency_key"],
             "properties": {
                 "opportunity_id": {"type": "string", "format": "uuid"},
-                "idempotency_key": {"type": "string", "minLength": 8, "maxLength": 128},
+                "idempotency_key": {
+                    "type": "string",
+                    "minLength": 8,
+                    "maxLength": 128,
+                    "description": "Reuse the same idempotency key only when retrying the exact same logical operation after an uncertain transport outcome. Use a new key when the previous result was definitive or when relevant state/inputs have changed and a new operation is intended.",
+                },
             },
         },
     },
     "accept_job": {
         "name": "accept_job",
-        "description": "Accept an opportunity if server-side evaluation allows it.",
+        "description": "Accept an opportunity only if policy, mission constraints, and agent risk judgement all pass. Hard policy rejection cannot be overridden. Reuse idempotency_key only after an uncertain transport outcome for the same operation.",
         "parameters": {
             "type": "object",
             "additionalProperties": False,
             "required": ["opportunity_id", "idempotency_key"],
             "properties": {
                 "opportunity_id": {"type": "string", "format": "uuid"},
-                "idempotency_key": {"type": "string", "minLength": 8, "maxLength": 128},
+                "idempotency_key": {
+                    "type": "string",
+                    "minLength": 8,
+                    "maxLength": 128,
+                    "description": "Reuse the same idempotency key only when retrying the exact same logical operation after an uncertain transport outcome. Use a new key when the previous result was definitive or when relevant state/inputs have changed and a new operation is intended.",
+                },
             },
         },
     },
@@ -97,7 +107,12 @@ _SCHEMAS: dict[str, dict[str, Any]] = {
             "required": ["job_id", "idempotency_key"],
             "properties": {
                 "job_id": {"type": "string", "format": "uuid"},
-                "idempotency_key": {"type": "string", "minLength": 8, "maxLength": 128},
+                "idempotency_key": {
+                    "type": "string",
+                    "minLength": 8,
+                    "maxLength": 128,
+                    "description": "Reuse the same idempotency key only when retrying the exact same logical operation after an uncertain transport outcome. Use a new key when the previous result was definitive or when relevant state/inputs have changed and a new operation is intended.",
+                },
             },
         },
     },
@@ -110,7 +125,12 @@ _SCHEMAS: dict[str, dict[str, Any]] = {
             "required": ["job_id", "idempotency_key"],
             "properties": {
                 "job_id": {"type": "string", "format": "uuid"},
-                "idempotency_key": {"type": "string", "minLength": 8, "maxLength": 128},
+                "idempotency_key": {
+                    "type": "string",
+                    "minLength": 8,
+                    "maxLength": 128,
+                    "description": "Reuse the same idempotency key only when retrying the exact same logical operation after an uncertain transport outcome. Use a new key when the previous result was definitive or when relevant state/inputs have changed and a new operation is intended.",
+                },
                 "note": {"type": "string", "maxLength": 500},
             },
         },
@@ -124,7 +144,12 @@ _SCHEMAS: dict[str, dict[str, Any]] = {
             "required": ["job_id", "idempotency_key"],
             "properties": {
                 "job_id": {"type": "string", "format": "uuid"},
-                "idempotency_key": {"type": "string", "minLength": 8, "maxLength": 128},
+                "idempotency_key": {
+                    "type": "string",
+                    "minLength": 8,
+                    "maxLength": 128,
+                    "description": "Reuse the same idempotency key only when retrying the exact same logical operation after an uncertain transport outcome. Use a new key when the previous result was definitive or when relevant state/inputs have changed and a new operation is intended.",
+                },
             },
         },
     },
@@ -150,7 +175,12 @@ _SCHEMAS: dict[str, dict[str, Any]] = {
                         "asset": {"type": "string", "enum": ["USDC"]},
                     },
                 },
-                "idempotency_key": {"type": "string", "minLength": 8, "maxLength": 128},
+                "idempotency_key": {
+                    "type": "string",
+                    "minLength": 8,
+                    "maxLength": 128,
+                    "description": "Reuse the same idempotency key only when retrying the exact same logical operation after an uncertain transport outcome. Use a new key when the previous result was definitive or when relevant state/inputs have changed and a new operation is intended.",
+                },
             },
         },
     },
@@ -192,7 +222,12 @@ _SCHEMAS: dict[str, dict[str, Any]] = {
                 "expected_value": {"type": ["string", "null"]},
                 "confidence": {"type": "number", "minimum": 0, "maximum": 1},
                 "input_summary": {"type": "string", "maxLength": 2000},
-                "idempotency_key": {"type": "string", "minLength": 8, "maxLength": 128},
+                "idempotency_key": {
+                    "type": "string",
+                    "minLength": 8,
+                    "maxLength": 128,
+                    "description": "Reuse the same idempotency key only when retrying the exact same logical operation after an uncertain transport outcome. Use a new key when the previous result was definitive or when relevant state/inputs have changed and a new operation is intended.",
+                },
             },
         },
     },
@@ -245,7 +280,12 @@ _SCHEMAS: dict[str, dict[str, Any]] = {
                     ],
                 },
                 "message": {"type": "string", "minLength": 10, "maxLength": 500},
-                "idempotency_key": {"type": "string", "minLength": 8, "maxLength": 128},
+                "idempotency_key": {
+                    "type": "string",
+                    "minLength": 8,
+                    "maxLength": 128,
+                    "description": "Reuse the same idempotency key only when retrying the exact same logical operation after an uncertain transport outcome. Use a new key when the previous result was definitive or when relevant state/inputs have changed and a new operation is intended.",
+                },
             },
         },
     },
@@ -271,7 +311,12 @@ _SCHEMAS: dict[str, dict[str, Any]] = {
             "properties": {
                 "marketplace": {"type": "string", "minLength": 3, "maxLength": 64, "default": "local"},
                 "service_id": {"type": ["string", "null"], "minLength": 3, "maxLength": 64},
-                "idempotency_key": {"type": "string", "minLength": 8, "maxLength": 128},
+                "idempotency_key": {
+                    "type": "string",
+                    "minLength": 8,
+                    "maxLength": 128,
+                    "description": "Reuse the same idempotency key only when retrying the exact same logical operation after an uncertain transport outcome. Use a new key when the previous result was definitive or when relevant state/inputs have changed and a new operation is intended.",
+                },
             },
         },
     },
@@ -298,7 +343,12 @@ _SCHEMAS: dict[str, dict[str, Any]] = {
             "properties": {
                 "conversation_id": {"type": "string", "minLength": 36, "maxLength": 36},
                 "message": {"type": "string", "minLength": 10, "maxLength": 500},
-                "idempotency_key": {"type": "string", "minLength": 8, "maxLength": 128},
+                "idempotency_key": {
+                    "type": "string",
+                    "minLength": 8,
+                    "maxLength": 128,
+                    "description": "Reuse the same idempotency key only when retrying the exact same logical operation after an uncertain transport outcome. Use a new key when the previous result was definitive or when relevant state/inputs have changed and a new operation is intended.",
+                },
             },
         },
     },
@@ -313,7 +363,12 @@ _SCHEMAS: dict[str, dict[str, Any]] = {
                 "counterparty_id": {"type": "string", "minLength": 3, "maxLength": 200},
                 "channel": {"type": "string", "enum": ["marketplace_api", "agent_protocol"], "default": "marketplace_api"},
                 "proposal": {"type": "string", "minLength": 10, "maxLength": 500},
-                "idempotency_key": {"type": "string", "minLength": 8, "maxLength": 128},
+                "idempotency_key": {
+                    "type": "string",
+                    "minLength": 8,
+                    "maxLength": 128,
+                    "description": "Reuse the same idempotency key only when retrying the exact same logical operation after an uncertain transport outcome. Use a new key when the previous result was definitive or when relevant state/inputs have changed and a new operation is intended.",
+                },
             },
         },
     },
@@ -449,8 +504,27 @@ def _post_tool(name: str, body: dict[str, Any]) -> dict[str, Any]:
     try:
         with urlopen(req, timeout=30) as resp:
             raw = resp.read().decode("utf-8")
+    except HTTPError as exc:
+        raw = exc.read().decode("utf-8", "replace") if exc.fp is not None else ""
+        try:
+            parsed = json.loads(raw) if raw else {}
+        except json.JSONDecodeError:
+            parsed = {}
+        if isinstance(parsed, dict) and parsed.get("code"):
+            return _scrub(parsed, token)
+        return {
+            "ok": False,
+            "code": "NETWORK_FAILURE",
+            "correlation_id": correlation_id,
+            "detail": f"control plane HTTP {exc.code}",
+        }
     except URLError:
-        return {"ok": False, "code": "NETWORK_FAILURE", "correlation_id": correlation_id}
+        return {
+            "ok": False,
+            "code": "NETWORK_FAILURE",
+            "correlation_id": correlation_id,
+            "detail": "control plane unreachable",
+        }
     try:
         parsed = json.loads(raw)
     except json.JSONDecodeError:
