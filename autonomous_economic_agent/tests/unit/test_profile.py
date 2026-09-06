@@ -7,10 +7,11 @@ from pathlib import Path
 import yaml
 
 from aea import (
-    DECLARED_ECONOMIC_TOOLS,
+    CALLABLE_MODEL_TOOLS,
     DECLARED_UNIMPLEMENTED_TOOLS,
     IMPLEMENTED_ECONOMIC_TOOLS,
     NINE_TOOLS,
+    READONLY_WEB_TOOLS,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -61,11 +62,14 @@ def test_profile_installer_pins_tui_and_uses_portable_plugin_copy() -> None:
 
 def test_agent_yaml_declares_authoritative_capabilities() -> None:
     doc = yaml.safe_load(AGENT_YAML.read_text(encoding="utf-8"))
-    assert doc["tools"]["allow"] == list(DECLARED_ECONOMIC_TOOLS)
-    assert set(DECLARED_UNIMPLEMENTED_TOOLS) == set(doc["tools"]["allow"]) - set(
-        IMPLEMENTED_ECONOMIC_TOOLS
-    )
+    assert doc["tools"]["allow"] == list(CALLABLE_MODEL_TOOLS)
+    assert DECLARED_UNIMPLEMENTED_TOOLS == ()
+    assert set(READONLY_WEB_TOOLS).isdisjoint(IMPLEMENTED_ECONOMIC_TOOLS)
     assert "terminal" in doc["tools"]["deny"]
+    assert "browser_automation" in doc["tools"]["deny"]
+    assert "computer_use" in doc["tools"]["deny"]
+    assert "email" in doc["tools"]["deny"]
+    assert "external_messaging" in doc["tools"]["deny"]
     assert "signer" in doc["tools"]["deny"]
     assert doc["security"]["wallet_key_access"] is False
     assert doc["execution_policy"]["policy_engine_is_final_spend_control"] is True
@@ -86,6 +90,15 @@ def test_run_input_has_no_job_selection_hints() -> None:
     assert "available tools" in data["instructions"]
     for tool in NINE_TOOLS:
         assert tool not in data["instructions"]
+
+
+def test_validator_profile_is_unchanged() -> None:
+    validator = REPO_ROOT / "agents" / "controlops-msft-validator" / "agent.yaml"
+    doc = yaml.safe_load(validator.read_text(encoding="utf-8"))
+    assert doc["agent"]["agent_id"] == "controlops-msft-validator"
+    assert "terminal" in doc["tools"]["allow"]
+    assert "web_search" in doc["tools"]["allow"]
+    assert "find_jobs" not in doc["tools"]["allow"]
 
 
 def test_compose_symlink_points_at_canonical_file() -> None:

@@ -17,7 +17,7 @@ from uuid import UUID, uuid4
 
 from pydantic import ValidationError
 
-from aea import AGENT_ID, CONSTITUTION_VERSION, IMPLEMENTED_ECONOMIC_TOOLS, POLICY_VERSION
+from aea import AGENT_ID, CALLABLE_MODEL_TOOLS, CONSTITUTION_VERSION, POLICY_VERSION
 from aea.config import LoadedPolicy, load_policy
 from aea.control.auth import (
     authorize_control_only,
@@ -34,6 +34,7 @@ from aea.ledger.service import LedgerService
 from aea.marketplace.mock import MockMarketplace
 from aea.marketplace.engagement import EconomicEngagementService
 from aea.marketplace.protocol import MarketplaceAdapter, MarketplaceError
+from aea.research.readonly import ReadOnlyWebService
 from aea.payment.service import PaymentOrchestrator
 from aea.policy.reasons import HttpCode, ReasonCode
 from aea.types import format_amount
@@ -180,6 +181,7 @@ class ControlService:
         configured_solana: dict[str, Any] | None = None,
         configured_evm: dict[str, Any] | None = None,
         engagement: EconomicEngagementService | None = None,
+        web_research: ReadOnlyWebService | None = None,
         auto_commit: bool = True,
     ) -> None:
         if not model_token:
@@ -207,6 +209,7 @@ class ControlService:
         self._configured_solana = configured_solana or {}
         self._configured_evm = configured_evm or {}
         self._engagement = engagement or EconomicEngagementService()
+        self._web = web_research or ReadOnlyWebService()
         self._auto_commit = auto_commit
         self._idem: dict[tuple[str, str], tuple[str, dict[str, Any]]] = {}
         self._plane = None
@@ -335,7 +338,7 @@ class ControlService:
         receive: Receive,
         send: Send,
     ) -> None:
-        if name not in IMPLEMENTED_ECONOMIC_TOOLS:
+        if name not in CALLABLE_MODEL_TOOLS:
             await _send_json(
                 send,
                 status=404,
@@ -561,6 +564,10 @@ class ControlService:
             )
             self._audit_engagement("service_offer_posted", result, correlation_id)
             return result
+        if name == "web_search":
+            return self._web.web_search(query=req.query, limit=req.limit)
+        if name == "web_extract":
+            return self._web.web_extract(url=req.url)
         if self._plane is not None:
             return self._plane.dispatch(name, req, correlation_id=correlation_id)
         if name == "get_financial_state":
@@ -707,6 +714,7 @@ def create_app(
     configured_solana: dict[str, Any] | None = None,
     configured_evm: dict[str, Any] | None = None,
     engagement: EconomicEngagementService | None = None,
+    web_research: ReadOnlyWebService | None = None,
     auto_commit: bool = True,
     hmac_key: str | None = None,
     debit_token: str | None = None,
@@ -734,6 +742,7 @@ def create_app(
         configured_solana=configured_solana,
         configured_evm=configured_evm,
         engagement=engagement,
+        web_research=web_research,
         auto_commit=auto_commit,
         hmac_key=hmac_key,
         debit_token=debit_token,

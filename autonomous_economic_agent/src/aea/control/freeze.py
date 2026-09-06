@@ -35,6 +35,8 @@ OBSERVE_TOOLS = frozenset(
         "read_messages",
         "get_market_status",
         "list_active_conversations",
+        "web_search",
+        "web_extract",
     }
 )
 

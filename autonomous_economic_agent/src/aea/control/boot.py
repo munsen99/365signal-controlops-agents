@@ -9,8 +9,7 @@ import yaml
 from aea import (
     AGENT_ID,
     CONSTITUTION_VERSION,
-    DECLARED_ECONOMIC_TOOLS,
-    IMPLEMENTED_ECONOMIC_TOOLS,
+    CALLABLE_MODEL_TOOLS,
     POLICY_VERSION,
 )
 
@@ -54,8 +53,8 @@ def validate_boot(
         raise BootError("agent.yaml agent_id mismatch")
     if agent["identity"]["constitution_version"] != expected_constitution:
         raise BootError("agent.yaml constitution version mismatch")
-    if list(agent["tools"]["allow"]) != list(DECLARED_ECONOMIC_TOOLS):
-        raise BootError("agent.yaml tools.allow does not match the declared economic capabilities")
+    if list(agent["tools"]["allow"]) != list(CALLABLE_MODEL_TOOLS):
+        raise BootError("agent.yaml tools.allow does not match callable model tools")
     _forbid_secrets(agent_yaml, agent_yaml.read_text(encoding="utf-8"))
 
     cfg_text = profile_config.read_text(encoding="utf-8")
@@ -75,8 +74,8 @@ def validate_boot(
     plugin = yaml.safe_load(plugin_yaml.read_text(encoding="utf-8"))
     if plugin.get("name") != "economic-agent":
         raise BootError("plugin.yaml name mismatch")
-    if list(plugin.get("provides_tools") or []) != list(IMPLEMENTED_ECONOMIC_TOOLS):
-        raise BootError("plugin.yaml must provide exactly the implemented economic tools")
+    if list(plugin.get("provides_tools") or []) != list(CALLABLE_MODEL_TOOLS):
+        raise BootError("plugin.yaml must provide the economic tools plus read-only web research")
     _forbid_secrets(plugin_yaml, plugin_yaml.read_text(encoding="utf-8"))
 
     if run_input is not None:

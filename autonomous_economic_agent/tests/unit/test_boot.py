@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from aea import DECLARED_ECONOMIC_TOOLS
+from aea import CALLABLE_MODEL_TOOLS
 from aea.control.boot import BootError, validate_boot
 
 REPO = Path(__file__).resolve().parents[3]
@@ -64,7 +64,7 @@ def test_validate_boot_rejects_unrestricted_api_server_toolsets(tmp_path: Path) 
     profile = tmp_path / "config.yaml"
     profile.write_text(yaml.safe_dump(cfg), encoding="utf-8")
     agent_cfg = yaml.safe_load(AGENT.read_text(encoding="utf-8"))
-    agent_cfg["tools"]["allow"] = list(DECLARED_ECONOMIC_TOOLS)
+    agent_cfg["tools"]["allow"] = list(CALLABLE_MODEL_TOOLS)
     agent = tmp_path / "agent.yaml"
     agent.write_text(yaml.safe_dump(agent_cfg), encoding="utf-8")
     with pytest.raises(BootError, match="platform_toolsets.api_server"):

@@ -23,3 +23,5 @@ provides_tools:
   - propose_collaboration
   - get_market_status
   - list_active_conversations
+  - web_search
+  - web_extract

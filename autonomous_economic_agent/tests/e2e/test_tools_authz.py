@@ -8,13 +8,14 @@ import json
 from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
+from types import SimpleNamespace
 from uuid import uuid4
 
 import httpx
 import pytest
 from pydantic import ValidationError
 
-from aea import DECLARED_UNIMPLEMENTED_TOOLS, IMPLEMENTED_ECONOMIC_TOOLS, NINE_TOOLS
+from aea import CALLABLE_MODEL_TOOLS, DECLARED_UNIMPLEMENTED_TOOLS, IMPLEMENTED_ECONOMIC_TOOLS, NINE_TOOLS
 from aea.config import load_policy
 from aea.control.app import create_app
 from aea.control.schemas import GetFinancialStateRequest, RequestPaymentRequest
@@ -22,6 +23,7 @@ from aea.ledger.service import LedgerService
 from aea.marketplace.mock import MockMarketplace
 from aea.marketplace.engagement import EconomicEngagementService
 from aea.marketplace.intelligence import MarketObservation
+from aea.research.readonly import ReadOnlyWebService
 from aea.tools_client.http import ToolClient
 from aea.wallet.mock import MockWallet
 
@@ -131,7 +133,28 @@ def engagement() -> EconomicEngagementService:
 
 
 @pytest.fixture
-def app(freeze_dir: Path, market: MockMarketplace, wallet: MockWallet, conn, engagement):
+def web_research() -> ReadOnlyWebService:
+    class Client:
+        def request(self, method, url, **kwargs):  # type: ignore[no-untyped-def]
+            assert method == "GET"
+            body = (
+                b'<a class="result__a" href="https://example.com/jobs">Public jobs</a>'
+                b'<a class="result__snippet">Bounded research work.</a>'
+                if "duckduckgo" in str(url)
+                else b"<html><body><p>Public listing of agent work.</p></body></html>"
+            )
+            return SimpleNamespace(
+                status_code=200,
+                content=body,
+                headers={"content-type": "text/html"},
+                url=str(url),
+            )
+
+    return ReadOnlyWebService(client=Client(), resolver=lambda host: ["8.8.8.8"], now=lambda: 1000.0)
+
+
+@pytest.fixture
+def app(freeze_dir: Path, market: MockMarketplace, wallet: MockWallet, conn, engagement, web_research):
     return create_app(
         model_token=MODEL,
         freeze_path=freeze_dir / "FREEZE",
@@ -144,6 +167,7 @@ def app(freeze_dir: Path, market: MockMarketplace, wallet: MockWallet, conn, eng
         wallet_balances=wallet.get_balances,
         ledger=LedgerService(conn, policy=load_policy()),
         engagement=engagement,
+        web_research=web_research,
         auto_commit=False,
     )
 
@@ -314,6 +338,48 @@ def test_new_bounded_tools_require_model_auth_and_observation_tools_work(app) ->
     assert injected.status_code == 400
     assert set(IMPLEMENTED_ECONOMIC_TOOLS) == set(NINE_TOOLS) | set(new_tools)
     assert len(IMPLEMENTED_ECONOMIC_TOOLS) == 19
+    assert set(CALLABLE_MODEL_TOOLS) == set(IMPLEMENTED_ECONOMIC_TOOLS) | {"web_search", "web_extract"}
+
+
+def test_readonly_web_tools_are_authenticated_get_only_and_ssrf_closed(app) -> None:
+    for name in ("web_search", "web_extract"):
+        missing = _request(app, "POST", f"/v1/tools/{name}", json={})
+        assert missing.status_code == 401, name
+    search = _request(
+        app,
+        "POST",
+        "/v1/tools/web_search",
+        json={"query": "autonomous agent bounty boards", "limit": 3},
+        headers=_auth(MODEL),
+    )
+    extract = _request(
+        app,
+        "POST",
+        "/v1/tools/web_extract",
+        json={"url": "https://example.com/jobs"},
+        headers=_auth(MODEL),
+    )
+    assert search.status_code == 200 and search.json()["read_only"] is True
+    assert extract.status_code == 200 and extract.json()["untrusted"] is True
+    local = _request(
+        app,
+        "POST",
+        "/v1/tools/web_extract",
+        json={"url": "http://127.0.0.1:18700/health"},
+        headers=_auth(MODEL),
+    )
+    assert local.status_code == 403
+    smuggled = _request(
+        app,
+        "POST",
+        "/v1/tools/web_extract",
+        json={"url": "https://example.com/jobs", "method": "POST"},
+        headers=_auth(MODEL),
+    )
+    assert smuggled.status_code == 400
+    for name in ("browser_automation", "computer_use", "terminal", "email", "external_messaging"):
+        denied = _request(app, "POST", f"/v1/tools/{name}", json={}, headers=_auth(MODEL))
+        assert denied.status_code == 404, name
 
 
 def test_declared_unimplemented_capabilities_have_no_control_route(app) -> None:

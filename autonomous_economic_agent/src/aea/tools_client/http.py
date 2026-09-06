@@ -11,7 +11,7 @@ from uuid import uuid4
 
 import httpx
 
-from aea import AGENT_ID, CONSTITUTION_VERSION, IMPLEMENTED_ECONOMIC_TOOLS, __version__
+from aea import AGENT_ID, CONSTITUTION_VERSION, CALLABLE_MODEL_TOOLS, __version__
 from aea.policy.reasons import HttpCode
 
 DEFAULT_CONTROL_URL = "http://127.0.0.1:18700"
@@ -82,7 +82,7 @@ class ToolClient:
         idempotency_key: str | None = None,
         correlation_id: str | None = None,
     ) -> dict[str, Any]:
-        if name not in IMPLEMENTED_ECONOMIC_TOOLS:
+        if name not in CALLABLE_MODEL_TOOLS:
             raise ToolClientError(HttpCode.FORBIDDEN, f"tool {name} is not permitted")
         cid = correlation_id or str(uuid4())
         headers = {

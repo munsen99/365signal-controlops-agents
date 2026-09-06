@@ -11,10 +11,12 @@ from pathlib import Path
 import yaml
 
 from aea import (
+    CALLABLE_MODEL_TOOLS,
     DECLARED_ECONOMIC_TOOLS,
     DECLARED_UNIMPLEMENTED_TOOLS,
     IMPLEMENTED_ECONOMIC_TOOLS,
     NINE_TOOLS,
+    READONLY_WEB_TOOLS,
 )
 from aea.control.freeze import MUTATING_TOOLS, OBSERVE_TOOLS
 from aea.control.schemas import TOOL_MODELS
@@ -27,14 +29,24 @@ AGENT_YAML = REPO / "agents" / "economic-agent" / "agent.yaml"
 
 def test_plugin_yaml_matches_implemented_tools() -> None:
     doc = yaml.safe_load(PLUGIN_YAML.read_text(encoding="utf-8"))
-    assert doc["provides_tools"] == list(IMPLEMENTED_ECONOMIC_TOOLS)
-    assert len(doc["provides_tools"]) == 19
-    assert len(set(doc["provides_tools"])) == 19
+    assert doc["provides_tools"] == list(CALLABLE_MODEL_TOOLS)
+    assert len(doc["provides_tools"]) == 21
+    assert len(set(doc["provides_tools"])) == 21
+    assert list(IMPLEMENTED_ECONOMIC_TOOLS) == doc["provides_tools"][:19]
 
 
 def test_agent_yaml_allow_matches_declared_capability_contract() -> None:
     doc = yaml.safe_load(AGENT_YAML.read_text(encoding="utf-8"))
-    assert doc["tools"]["allow"] == list(DECLARED_ECONOMIC_TOOLS)
+    assert doc["tools"]["allow"] == list(CALLABLE_MODEL_TOOLS)
+    assert "web_search" in doc["tools"]["allow"]
+    assert "web_extract" in doc["tools"]["allow"]
+    assert "browser_automation" in doc["tools"]["deny"]
+    assert "computer_use" in doc["tools"]["deny"]
+    assert "terminal" in doc["tools"]["deny"]
+    assert "email" in doc["tools"]["deny"]
+    assert "external_messaging" in doc["tools"]["deny"]
+    assert "web_search" not in doc["tools"]["deny"]
+    assert "web_extract" not in doc["tools"]["deny"]
 
 
 def test_plugin_register_only_loops_implemented_tools() -> None:
@@ -48,7 +60,7 @@ def test_plugin_register_only_loops_implemented_tools() -> None:
                         registered.append(kw.value.id)
     # register_tool(name=name, ...) inside the implemented allow-list loop.
     src = PLUGIN_PY.read_text(encoding="utf-8")
-    assert "for name in IMPLEMENTED_ECONOMIC_TOOLS" in src
+    assert "for name in CALLABLE_MODEL_TOOLS" in src
     assert "signer" not in src.lower() or "AEA_SIGNER" not in src
     assert "ctx.register_tool" in src
     assert src.count("ctx.register_tool") == 1
@@ -74,10 +86,12 @@ def test_plugin_schemas_forbid_additional_properties() -> None:
     spec.loader.exec_module(mod)
     assert tuple(mod.NINE_TOOLS) == NINE_TOOLS
     assert tuple(mod.IMPLEMENTED_ECONOMIC_TOOLS) == IMPLEMENTED_ECONOMIC_TOOLS
+    assert tuple(mod.READONLY_WEB_TOOLS) == READONLY_WEB_TOOLS
+    assert tuple(mod.CALLABLE_MODEL_TOOLS) == CALLABLE_MODEL_TOOLS
     for name, schema in mod._SCHEMAS.items():
         assert schema["parameters"]["additionalProperties"] is False
         assert schema["name"] == name
-    assert set(mod._SCHEMAS) == set(IMPLEMENTED_ECONOMIC_TOOLS)
+    assert set(mod._SCHEMAS) == set(CALLABLE_MODEL_TOOLS)
     assert mod._SCHEMAS["get_financial_state"]["parameters"]["properties"] == {}
 
 
@@ -100,7 +114,7 @@ def test_plugin_registers_exactly_the_economic_toolset() -> None:
 
     ctx = Context()
     mod.register(ctx)
-    assert [item["name"] for item in ctx.tools] == list(IMPLEMENTED_ECONOMIC_TOOLS)
+    assert [item["name"] for item in ctx.tools] == list(CALLABLE_MODEL_TOOLS)
     assert {item["toolset"] for item in ctx.tools} == {"economic"}
     assert not {"project_create", "project_list", "project_switch"} & {
         item["name"] for item in ctx.tools
@@ -110,11 +124,15 @@ def test_plugin_registers_exactly_the_economic_toolset() -> None:
         "file",
         "web",
         "browser",
+        "browser_automation",
+        "computer_use",
         "email",
         "external_messaging",
         "process",
         "code_execution",
     } & {item["name"] for item in ctx.tools}
+    assert "web_search" in {item["name"] for item in ctx.tools}
+    assert "web_extract" in {item["name"] for item in ctx.tools}
     assert [name for name, _ in ctx.hooks] == ["pre_tool_call"]
 
 
@@ -122,9 +140,10 @@ def test_all_declared_capabilities_are_implemented() -> None:
     assert DECLARED_ECONOMIC_TOOLS == IMPLEMENTED_ECONOMIC_TOOLS
     assert DECLARED_UNIMPLEMENTED_TOOLS == ()
     assert len(IMPLEMENTED_ECONOMIC_TOOLS) == 19
-    assert set(TOOL_MODELS) == set(IMPLEMENTED_ECONOMIC_TOOLS)
+    assert CALLABLE_MODEL_TOOLS == IMPLEMENTED_ECONOMIC_TOOLS + READONLY_WEB_TOOLS
+    assert set(TOOL_MODELS) == set(CALLABLE_MODEL_TOOLS)
     assert MUTATING_TOOLS.isdisjoint(OBSERVE_TOOLS)
-    assert MUTATING_TOOLS | OBSERVE_TOOLS == set(IMPLEMENTED_ECONOMIC_TOOLS)
+    assert MUTATING_TOOLS | OBSERVE_TOOLS == set(CALLABLE_MODEL_TOOLS)
 
 
 def test_declared_but_unimplemented_capabilities_fail_closed() -> None:

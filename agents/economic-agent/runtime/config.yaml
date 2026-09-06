@@ -60,5 +60,6 @@ session_reset:
 # run-input.yaml.
 #
 # Open Question 1 (PR8): file/terminal/web/process stay in disabled_toolsets.
-# Do not re-enable terminal to make Hermes boot. The plugin pre_tool_call
-# implemented-tool allow-list is the fail-closed fallback.
+# Do not re-enable terminal or the generic Hermes `web` toolset. Read-only
+# web_search/web_extract are provided by the economic plugin with GET-only
+# SSRF controls. The plugin pre_tool_call allow-list is the fail-closed fallback.

@@ -12,8 +12,12 @@ from dataclasses import dataclass
 from aea.hashing import sha256_hex
 
 PREVIEW_MAX_CHARS = 500
+WEB_PREVIEW_MAX_CHARS = 8000
 WRAP_OPEN = "[UNTRUSTED_MARKETPLACE_DATA]\n"
 WRAP_CLOSE = "\n[/UNTRUSTED_MARKETPLACE_DATA]"
+WEB_WRAP_OPEN = "[UNTRUSTED_WEB_DATA]\n"
+WEB_WRAP_CLOSE = "\n[/UNTRUSTED_WEB_DATA]"
+HOSTILE_CONTENT = "HOSTILE_CONTENT"
 
 _INJECTION_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"\bignore\b.{0,40}\bconstitution\b", re.I),
@@ -46,16 +50,16 @@ def detect_prompt_injection(text: str) -> bool:
     return any(pattern.search(text) for pattern in _INJECTION_PATTERNS)
 
 
-def sanitise_marketplace_text(text: str) -> SanitisedText:
-    """Return wrapped preview and flags. Does not interpret the text as instructions."""
+def _sanitise(text: str, *, limit: int, wrap_open: str, wrap_close: str) -> SanitisedText:
     original = text if isinstance(text, str) else ""
     cleaned = _strip_controls(original)
     injection = detect_prompt_injection(cleaned)
-    truncated = cleaned[:PREVIEW_MAX_CHARS]
-    wrapped = f"{WRAP_OPEN}{truncated}{WRAP_CLOSE}"
+    truncated = cleaned[:limit]
+    wrapped = f"{wrap_open}{truncated}{wrap_close}"
     flags: list[str] = []
     if injection:
         flags.append("prompt_injection")
+        flags.append(HOSTILE_CONTENT)
     return SanitisedText(
         original=original,
         preview=truncated,
@@ -64,3 +68,13 @@ def sanitise_marketplace_text(text: str) -> SanitisedText:
         flags=tuple(flags),
         prompt_injection=injection,
     )
+
+
+def sanitise_marketplace_text(text: str) -> SanitisedText:
+    """Return wrapped preview and flags. Does not interpret the text as instructions."""
+    return _sanitise(text, limit=PREVIEW_MAX_CHARS, wrap_open=WRAP_OPEN, wrap_close=WRAP_CLOSE)
+
+
+def sanitise_web_text(text: str, *, max_chars: int = WEB_PREVIEW_MAX_CHARS) -> SanitisedText:
+    """Wrap public web content. Retrieved instructions remain data."""
+    return _sanitise(text, limit=max_chars, wrap_open=WEB_WRAP_OPEN, wrap_close=WEB_WRAP_CLOSE)

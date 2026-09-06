@@ -43,11 +43,11 @@ tools:
     - propose_collaboration
     - get_market_status
     - list_active_conversations
+    - web_search
+    - web_extract
   deny:
     - terminal
     - process
-    - web_search
-    - web_extract
     - browser_automation
     - code_execution
     - memory

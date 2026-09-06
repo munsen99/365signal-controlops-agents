@@ -44,3 +44,13 @@ IMPLEMENTED_ECONOMIC_TOOLS: tuple[str, ...] = DECLARED_ECONOMIC_TOOLS
 DECLARED_UNIMPLEMENTED_TOOLS: tuple[str, ...] = tuple(
     name for name in DECLARED_ECONOMIC_TOOLS if name not in IMPLEMENTED_ECONOMIC_TOOLS
 )
+
+# Read-only public web research. Not part of the 19 economic tools and not
+# the generic Hermes `web` toolset. The economic plugin registers these names
+# with SSRF/GET-only controls while `web` stays in disabled_toolsets.
+READONLY_WEB_TOOLS: tuple[str, ...] = (
+    "web_search",
+    "web_extract",
+)
+
+CALLABLE_MODEL_TOOLS: tuple[str, ...] = IMPLEMENTED_ECONOMIC_TOOLS + READONLY_WEB_TOOLS

@@ -160,6 +160,15 @@ class ListActiveConversationsRequest(AeaBaseModel):
     limit: int = Field(default=10, ge=1, le=20)
 
 
+class WebSearchRequest(AeaBaseModel):
+    query: str = Field(min_length=3, max_length=200)
+    limit: int = Field(default=5, ge=1, le=8)
+
+
+class WebExtractRequest(AeaBaseModel):
+    url: str = Field(min_length=8, max_length=2048)
+
+
 TOOL_MODELS = {
     "find_jobs": FindJobsRequest,
     "evaluate_job": EvaluateJobRequest,
@@ -180,4 +189,6 @@ TOOL_MODELS = {
     "propose_collaboration": ProposeCollaborationRequest,
     "get_market_status": GetMarketStatusRequest,
     "list_active_conversations": ListActiveConversationsRequest,
+    "web_search": WebSearchRequest,
+    "web_extract": WebExtractRequest,
 }
