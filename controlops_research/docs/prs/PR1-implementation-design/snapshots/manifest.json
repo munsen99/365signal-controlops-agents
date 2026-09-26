@@ -1,0 +1,59 @@
+{
+  "purpose": "Design-review provenance only; not a runtime lookup mechanism",
+  "snapshots": [
+    {
+      "file": "snapshots/iana-ipv4-special-registry.xml",
+      "source_url": "https://www.iana.org/assignments/iana-ipv4-special-registry/iana-ipv4-special-registry.xml",
+      "retrieved_on": "2026-09-25",
+      "registry_updated": "2025-10-09",
+      "bytes": 13459,
+      "sha256": "cf24e11f41b7d42c68debe2d18b97cac815084ec413ebb3b244f704028a16f20",
+      "records": 25
+    },
+    {
+      "file": "snapshots/iana-ipv6-special-registry.xml",
+      "source_url": "https://www.iana.org/assignments/iana-ipv6-special-registry/iana-ipv6-special-registry.xml",
+      "retrieved_on": "2026-09-25",
+      "registry_updated": "2025-10-09",
+      "bytes": 13431,
+      "sha256": "c17f4380ba84fb2160dae82ebfd8bd155a5853cfab624ed3a9fd251638a8be02",
+      "records": 25
+    },
+    {
+      "file": "snapshots/ipv4-address-space.xml",
+      "source_url": "https://www.iana.org/assignments/ipv4-address-space/ipv4-address-space.xml",
+      "retrieved_on": "2026-09-25",
+      "registry_updated": "2025-10-10",
+      "bytes": 76759,
+      "sha256": "8ca3774374c81e4a673bb12d0eb415e7ac9970c6f5a6ceb14106de64b2cb3dcd",
+      "records": 256
+    },
+    {
+      "file": "snapshots/ipv6-address-space.xml",
+      "source_url": "https://www.iana.org/assignments/ipv6-address-space/ipv6-address-space.xml",
+      "retrieved_on": "2026-09-25",
+      "registry_updated": "2025-10-23",
+      "bytes": 6956,
+      "sha256": "15481d1e549b481f3bd0321c5cd2c0327a00cbd3d5a6fc35fc7b53b51e70b1cb",
+      "records": 20
+    },
+    {
+      "file": "snapshots/ipv6-unicast-address-assignments.xml",
+      "source_url": "https://www.iana.org/assignments/ipv6-unicast-address-assignments/ipv6-unicast-address-assignments.xml",
+      "retrieved_on": "2026-09-25",
+      "registry_updated": "2025-10-10",
+      "bytes": 16013,
+      "sha256": "22f9a545e020ea6b9adea9ea0276f3157e32c838682459a45bfe7760de0aefc3",
+      "records": 51
+    },
+    {
+      "file": "snapshots/special-use-domain-names.xml",
+      "source_url": "https://www.iana.org/assignments/special-use-domain-names/special-use-domain-names.xml",
+      "retrieved_on": "2026-09-25",
+      "registry_updated": "2026-05-22",
+      "bytes": 5304,
+      "sha256": "2659dec6fdb0377ba1f12d7418eb34e38b312e5f739574aeb868e00e1bcdf1e4",
+      "records": 42
+    }
+  ]
+}

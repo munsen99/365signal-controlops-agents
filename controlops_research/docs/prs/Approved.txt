@@ -1,0 +1,37 @@
+PR1 FINAL REVIEW DECISION: ACCEPTED.
+
+PR1 — Public URL Policy v1.0.0 is approved for commit.
+
+The approved implementation, fixture amendment and runtime acceptance
+amendment constitute the final PR1 record.
+
+Authorisation:
+- Stage ONLY files belonging to ControlOps Research PR0/PR1 that are
+  required for the PR1 implementation and its approved audit evidence.
+- Do not stage any unrelated autonomous_economic_agent, platform,
+  scripts/economic or other pre-existing workspace changes.
+- Do not begin PR2.
+- Do not modify policy behaviour, policy data, fixtures or tests.
+
+Before committing:
+1. Show the exact staged file list.
+2. Verify no unrelated files are staged.
+3. Run git diff --cached --check.
+4. Run the Python 3.14 ControlOps Research test suite once against the
+   final staged working state.
+5. Confirm the PR1 implementation/evidence files correspond to the
+   reviewed versions.
+
+If any unexpected file or difference appears, STOP without committing.
+
+If all checks pass, commit the approved PR1 changes with a concise
+message identifying PR1 Public URL Policy v1.0.0.
+
+After commit:
+- report the commit hash;
+- exact committed file list;
+- final test result;
+- git status --short;
+- confirm PR2 was not begun.
+
+Do not push unless separately authorised.

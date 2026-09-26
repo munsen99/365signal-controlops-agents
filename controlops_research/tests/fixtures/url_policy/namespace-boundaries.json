@@ -1,0 +1,386 @@
+[
+  {
+    "url": "https://alt/",
+    "decision": "REJECT",
+    "reason_code": "HOST_NOT_PERMITTED",
+    "suffix_under_test": "alt"
+  },
+  {
+    "url": "https://a.alt/",
+    "decision": "REJECT",
+    "reason_code": "DESTINATION_PROHIBITED",
+    "suffix_under_test": "alt"
+  },
+  {
+    "url": "https://alt.com/",
+    "decision": "ACCEPT",
+    "reason_code": "PUBLIC_URL_CANDIDATE",
+    "suffix_under_test": "alt"
+  },
+  {
+    "url": "https://notalt/",
+    "decision": "REJECT",
+    "reason_code": "HOST_NOT_PERMITTED",
+    "suffix_under_test": "alt"
+  },
+  {
+    "url": "https://arpa/",
+    "decision": "REJECT",
+    "reason_code": "HOST_NOT_PERMITTED",
+    "suffix_under_test": "arpa"
+  },
+  {
+    "url": "https://a.arpa/",
+    "decision": "REJECT",
+    "reason_code": "DESTINATION_PROHIBITED",
+    "suffix_under_test": "arpa"
+  },
+  {
+    "url": "https://arpa.com/",
+    "decision": "ACCEPT",
+    "reason_code": "PUBLIC_URL_CANDIDATE",
+    "suffix_under_test": "arpa"
+  },
+  {
+    "url": "https://notarpa/",
+    "decision": "REJECT",
+    "reason_code": "HOST_NOT_PERMITTED",
+    "suffix_under_test": "arpa"
+  },
+  {
+    "url": "https://corp/",
+    "decision": "REJECT",
+    "reason_code": "HOST_NOT_PERMITTED",
+    "suffix_under_test": "corp"
+  },
+  {
+    "url": "https://a.corp/",
+    "decision": "REJECT",
+    "reason_code": "DESTINATION_PROHIBITED",
+    "suffix_under_test": "corp"
+  },
+  {
+    "url": "https://corp.com/",
+    "decision": "ACCEPT",
+    "reason_code": "PUBLIC_URL_CANDIDATE",
+    "suffix_under_test": "corp"
+  },
+  {
+    "url": "https://notcorp/",
+    "decision": "REJECT",
+    "reason_code": "HOST_NOT_PERMITTED",
+    "suffix_under_test": "corp"
+  },
+  {
+    "url": "https://example/",
+    "decision": "REJECT",
+    "reason_code": "HOST_NOT_PERMITTED",
+    "suffix_under_test": "example"
+  },
+  {
+    "url": "https://a.example/",
+    "decision": "REJECT",
+    "reason_code": "DESTINATION_PROHIBITED",
+    "suffix_under_test": "example"
+  },
+  {
+    "url": "https://example.com/",
+    "decision": "REJECT",
+    "reason_code": "DESTINATION_PROHIBITED",
+    "suffix_under_test": "example"
+  },
+  {
+    "url": "https://notexample/",
+    "decision": "REJECT",
+    "reason_code": "HOST_NOT_PERMITTED",
+    "suffix_under_test": "example"
+  },
+  {
+    "url": "https://example.com/",
+    "decision": "REJECT",
+    "reason_code": "DESTINATION_PROHIBITED",
+    "suffix_under_test": "example.com"
+  },
+  {
+    "url": "https://a.example.com/",
+    "decision": "REJECT",
+    "reason_code": "DESTINATION_PROHIBITED",
+    "suffix_under_test": "example.com"
+  },
+  {
+    "url": "https://example.com.com/",
+    "decision": "ACCEPT",
+    "reason_code": "PUBLIC_URL_CANDIDATE",
+    "suffix_under_test": "example.com"
+  },
+  {
+    "url": "https://notexample.com/",
+    "decision": "ACCEPT",
+    "reason_code": "PUBLIC_URL_CANDIDATE",
+    "suffix_under_test": "example.com"
+  },
+  {
+    "url": "https://example.net/",
+    "decision": "REJECT",
+    "reason_code": "DESTINATION_PROHIBITED",
+    "suffix_under_test": "example.net"
+  },
+  {
+    "url": "https://a.example.net/",
+    "decision": "REJECT",
+    "reason_code": "DESTINATION_PROHIBITED",
+    "suffix_under_test": "example.net"
+  },
+  {
+    "url": "https://example.net.com/",
+    "decision": "ACCEPT",
+    "reason_code": "PUBLIC_URL_CANDIDATE",
+    "suffix_under_test": "example.net"
+  },
+  {
+    "url": "https://notexample.net/",
+    "decision": "ACCEPT",
+    "reason_code": "PUBLIC_URL_CANDIDATE",
+    "suffix_under_test": "example.net"
+  },
+  {
+    "url": "https://example.org/",
+    "decision": "REJECT",
+    "reason_code": "DESTINATION_PROHIBITED",
+    "suffix_under_test": "example.org"
+  },
+  {
+    "url": "https://a.example.org/",
+    "decision": "REJECT",
+    "reason_code": "DESTINATION_PROHIBITED",
+    "suffix_under_test": "example.org"
+  },
+  {
+    "url": "https://example.org.com/",
+    "decision": "ACCEPT",
+    "reason_code": "PUBLIC_URL_CANDIDATE",
+    "suffix_under_test": "example.org"
+  },
+  {
+    "url": "https://notexample.org/",
+    "decision": "ACCEPT",
+    "reason_code": "PUBLIC_URL_CANDIDATE",
+    "suffix_under_test": "example.org"
+  },
+  {
+    "url": "https://home/",
+    "decision": "REJECT",
+    "reason_code": "HOST_NOT_PERMITTED",
+    "suffix_under_test": "home"
+  },
+  {
+    "url": "https://a.home/",
+    "decision": "REJECT",
+    "reason_code": "DESTINATION_PROHIBITED",
+    "suffix_under_test": "home"
+  },
+  {
+    "url": "https://home.com/",
+    "decision": "ACCEPT",
+    "reason_code": "PUBLIC_URL_CANDIDATE",
+    "suffix_under_test": "home"
+  },
+  {
+    "url": "https://nothome/",
+    "decision": "REJECT",
+    "reason_code": "HOST_NOT_PERMITTED",
+    "suffix_under_test": "home"
+  },
+  {
+    "url": "https://internal/",
+    "decision": "REJECT",
+    "reason_code": "HOST_NOT_PERMITTED",
+    "suffix_under_test": "internal"
+  },
+  {
+    "url": "https://a.internal/",
+    "decision": "REJECT",
+    "reason_code": "DESTINATION_PROHIBITED",
+    "suffix_under_test": "internal"
+  },
+  {
+    "url": "https://internal.com/",
+    "decision": "ACCEPT",
+    "reason_code": "PUBLIC_URL_CANDIDATE",
+    "suffix_under_test": "internal"
+  },
+  {
+    "url": "https://notinternal/",
+    "decision": "REJECT",
+    "reason_code": "HOST_NOT_PERMITTED",
+    "suffix_under_test": "internal"
+  },
+  {
+    "url": "https://intranet/",
+    "decision": "REJECT",
+    "reason_code": "HOST_NOT_PERMITTED",
+    "suffix_under_test": "intranet"
+  },
+  {
+    "url": "https://a.intranet/",
+    "decision": "REJECT",
+    "reason_code": "DESTINATION_PROHIBITED",
+    "suffix_under_test": "intranet"
+  },
+  {
+    "url": "https://intranet.com/",
+    "decision": "ACCEPT",
+    "reason_code": "PUBLIC_URL_CANDIDATE",
+    "suffix_under_test": "intranet"
+  },
+  {
+    "url": "https://notintranet/",
+    "decision": "REJECT",
+    "reason_code": "HOST_NOT_PERMITTED",
+    "suffix_under_test": "intranet"
+  },
+  {
+    "url": "https://invalid/",
+    "decision": "REJECT",
+    "reason_code": "HOST_NOT_PERMITTED",
+    "suffix_under_test": "invalid"
+  },
+  {
+    "url": "https://a.invalid/",
+    "decision": "REJECT",
+    "reason_code": "DESTINATION_PROHIBITED",
+    "suffix_under_test": "invalid"
+  },
+  {
+    "url": "https://invalid.com/",
+    "decision": "ACCEPT",
+    "reason_code": "PUBLIC_URL_CANDIDATE",
+    "suffix_under_test": "invalid"
+  },
+  {
+    "url": "https://notinvalid/",
+    "decision": "REJECT",
+    "reason_code": "HOST_NOT_PERMITTED",
+    "suffix_under_test": "invalid"
+  },
+  {
+    "url": "https://lan/",
+    "decision": "REJECT",
+    "reason_code": "HOST_NOT_PERMITTED",
+    "suffix_under_test": "lan"
+  },
+  {
+    "url": "https://a.lan/",
+    "decision": "REJECT",
+    "reason_code": "DESTINATION_PROHIBITED",
+    "suffix_under_test": "lan"
+  },
+  {
+    "url": "https://lan.com/",
+    "decision": "ACCEPT",
+    "reason_code": "PUBLIC_URL_CANDIDATE",
+    "suffix_under_test": "lan"
+  },
+  {
+    "url": "https://notlan/",
+    "decision": "REJECT",
+    "reason_code": "HOST_NOT_PERMITTED",
+    "suffix_under_test": "lan"
+  },
+  {
+    "url": "https://local/",
+    "decision": "REJECT",
+    "reason_code": "HOST_NOT_PERMITTED",
+    "suffix_under_test": "local"
+  },
+  {
+    "url": "https://a.local/",
+    "decision": "REJECT",
+    "reason_code": "DESTINATION_PROHIBITED",
+    "suffix_under_test": "local"
+  },
+  {
+    "url": "https://local.com/",
+    "decision": "ACCEPT",
+    "reason_code": "PUBLIC_URL_CANDIDATE",
+    "suffix_under_test": "local"
+  },
+  {
+    "url": "https://notlocal/",
+    "decision": "REJECT",
+    "reason_code": "HOST_NOT_PERMITTED",
+    "suffix_under_test": "local"
+  },
+  {
+    "url": "https://localhost/",
+    "decision": "REJECT",
+    "reason_code": "HOST_NOT_PERMITTED",
+    "suffix_under_test": "localhost"
+  },
+  {
+    "url": "https://a.localhost/",
+    "decision": "REJECT",
+    "reason_code": "DESTINATION_PROHIBITED",
+    "suffix_under_test": "localhost"
+  },
+  {
+    "url": "https://localhost.com/",
+    "decision": "ACCEPT",
+    "reason_code": "PUBLIC_URL_CANDIDATE",
+    "suffix_under_test": "localhost"
+  },
+  {
+    "url": "https://notlocalhost/",
+    "decision": "REJECT",
+    "reason_code": "HOST_NOT_PERMITTED",
+    "suffix_under_test": "localhost"
+  },
+  {
+    "url": "https://onion/",
+    "decision": "REJECT",
+    "reason_code": "HOST_NOT_PERMITTED",
+    "suffix_under_test": "onion"
+  },
+  {
+    "url": "https://a.onion/",
+    "decision": "REJECT",
+    "reason_code": "DESTINATION_PROHIBITED",
+    "suffix_under_test": "onion"
+  },
+  {
+    "url": "https://onion.com/",
+    "decision": "ACCEPT",
+    "reason_code": "PUBLIC_URL_CANDIDATE",
+    "suffix_under_test": "onion"
+  },
+  {
+    "url": "https://notonion/",
+    "decision": "REJECT",
+    "reason_code": "HOST_NOT_PERMITTED",
+    "suffix_under_test": "onion"
+  },
+  {
+    "url": "https://test/",
+    "decision": "REJECT",
+    "reason_code": "HOST_NOT_PERMITTED",
+    "suffix_under_test": "test"
+  },
+  {
+    "url": "https://a.test/",
+    "decision": "REJECT",
+    "reason_code": "DESTINATION_PROHIBITED",
+    "suffix_under_test": "test"
+  },
+  {
+    "url": "https://test.com/",
+    "decision": "ACCEPT",
+    "reason_code": "PUBLIC_URL_CANDIDATE",
+    "suffix_under_test": "test"
+  },
+  {
+    "url": "https://nottest/",
+    "decision": "REJECT",
+    "reason_code": "HOST_NOT_PERMITTED",
+    "suffix_under_test": "test"
+  }
+]

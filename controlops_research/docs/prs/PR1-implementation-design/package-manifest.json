@@ -1,0 +1,110 @@
+{
+  "status": "APPROVED_WITH_FIXTURE_AMENDMENT",
+  "proposal_revision": "draft-1-fixture-amendment-1",
+  "prepared_on": "2026-09-25",
+  "proposed_policy_version": "controlops-public-url/v1.0.0",
+  "hash_algorithm": "SHA-256",
+  "manifest_excludes_itself": true,
+  "authoritative_inputs": [
+    {
+      "file": "../approvals/pr1-fixture-amendment-2026-09-25/PR1-public-url-policy-before-implementation.md",
+      "sha256": "2d1a8c943dc6a6bfac190854ce98ed391c5dd63790b534618f5ae7d36645ae74"
+    },
+    {
+      "file": "../../architecture-invariants.md",
+      "sha256": "7c70eeee129ffd7ecb71014a9aa821e8c80fd3291b6941ba5a82ef75a261f449"
+    }
+  ],
+  "artifacts": [
+    {
+      "file": "01-policy-tables.md",
+      "bytes": 8641,
+      "sha256": "461f54ce6e5a0ec1c76ea97e6c84ee241986dcc3508b47c3d4a68363a594adb6"
+    },
+    {
+      "file": "02-source-snapshots.md",
+      "bytes": 3721,
+      "sha256": "ee0c39c9d21bbaecca85aa09967dcf4b70799f332b126e383cf6be96df83a9ad"
+    },
+    {
+      "file": "03-policy-version.md",
+      "bytes": 2690,
+      "sha256": "d24d0cc2d89a3539a67d3396b2052fe44cd8eb55f635f6759dbd3492e5bdd25c"
+    },
+    {
+      "file": "04-boundary-fixtures.md",
+      "bytes": 4014,
+      "sha256": "f8732e32229029d01c89e0eb2b17d4b7bcf90408ea649c9667e9f05e93058448"
+    },
+    {
+      "file": "05-decision-interface.md",
+      "bytes": 9124,
+      "sha256": "0ab90f7ecdeb52246d1a8775dd46856187dccd5d9aa4e07054eb778d6541cfc0"
+    },
+    {
+      "file": "README.md",
+      "bytes": 3889,
+      "sha256": "8cea918bf945f60e7e905a9e59dae5a5267fc4117c2f96d0a6027d3dca34eea5"
+    },
+    {
+      "file": "fixtures/address-boundaries.csv",
+      "bytes": 45838,
+      "sha256": "1edadfe6de492d9b4263b3e84e33e4d073da1cf69432c8640d228018bc90557d"
+    },
+    {
+      "file": "fixtures/decision-examples.json",
+      "bytes": 43581,
+      "sha256": "78b59f53c460c3f6cd10430ad705e291dd947fa28dc2cc2094580b3e72cc86e4"
+    },
+    {
+      "file": "fixtures/namespace-boundaries.json",
+      "bytes": 9287,
+      "sha256": "2a9b2a40c85282efce784cb821f146f5269c8de668561aef1a4a9da55f485da2"
+    },
+    {
+      "file": "proposed-policy-data.json",
+      "bytes": 7323,
+      "sha256": "01f06d5b5dd8847d2fec5ea1c821e0f8d54010349419242fee0eb7c5ff936c09"
+    },
+    {
+      "file": "snapshots/iana-ipv4-special-registry.xml",
+      "bytes": 13459,
+      "sha256": "cf24e11f41b7d42c68debe2d18b97cac815084ec413ebb3b244f704028a16f20"
+    },
+    {
+      "file": "snapshots/iana-ipv6-special-registry.xml",
+      "bytes": 13431,
+      "sha256": "c17f4380ba84fb2160dae82ebfd8bd155a5853cfab624ed3a9fd251638a8be02"
+    },
+    {
+      "file": "snapshots/ipv4-address-space.xml",
+      "bytes": 76759,
+      "sha256": "8ca3774374c81e4a673bb12d0eb415e7ac9970c6f5a6ceb14106de64b2cb3dcd"
+    },
+    {
+      "file": "snapshots/ipv6-address-space.xml",
+      "bytes": 6956,
+      "sha256": "15481d1e549b481f3bd0321c5cd2c0327a00cbd3d5a6fc35fc7b53b51e70b1cb"
+    },
+    {
+      "file": "snapshots/ipv6-unicast-address-assignments.xml",
+      "bytes": 16013,
+      "sha256": "22f9a545e020ea6b9adea9ea0276f3157e32c838682459a45bfe7760de0aefc3"
+    },
+    {
+      "file": "snapshots/manifest.json",
+      "bytes": 2387,
+      "sha256": "1b5a819cbb7878b9d5f4ecf2745a542508af836e21e5a1081a52b914d21072ca"
+    },
+    {
+      "file": "snapshots/special-use-domain-names.xml",
+      "bytes": 5304,
+      "sha256": "2659dec6fdb0377ba1f12d7418eb34e38b312e5f739574aeb868e00e1bcdf1e4"
+    },
+    {
+      "file": "validation.md",
+      "bytes": 2681,
+      "sha256": "fc9e97e2c1e887dec5103f9579c74cf0f2f19c68284c7b873fafd9f8c2d04f2a"
+    }
+  ]
+}

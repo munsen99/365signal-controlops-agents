@@ -1,0 +1,1379 @@
+[
+  {
+    "id": "https",
+    "input": "https://learn.microsoft.com/",
+    "policy_available": true,
+    "expected": {
+      "original_url": "https://learn.microsoft.com/",
+      "decision": "ACCEPT",
+      "reason_code": "PUBLIC_URL_CANDIDATE",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": "https://learn.microsoft.com/",
+      "host": "learn.microsoft.com",
+      "host_kind": "dns",
+      "effective_port": 443,
+      "explanation": "Candidate source accepted by deterministic URL policy.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "https-case-default-port",
+    "input": "HTTPS://LEARN.MICROSOFT.COM:443",
+    "policy_available": true,
+    "expected": {
+      "original_url": "HTTPS://LEARN.MICROSOFT.COM:443",
+      "decision": "ACCEPT",
+      "reason_code": "PUBLIC_URL_CANDIDATE",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": "https://learn.microsoft.com/",
+      "host": "learn.microsoft.com",
+      "host_kind": "dns",
+      "effective_port": 443,
+      "explanation": "Candidate source accepted by deterministic URL policy.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "query-order-duplicates-escapes",
+    "input": "https://learn.microsoft.com/a%2fb?q=x%26y&q=Two#section",
+    "policy_available": true,
+    "expected": {
+      "original_url": "https://learn.microsoft.com/a%2fb?q=x%26y&q=Two#section",
+      "decision": "ACCEPT",
+      "reason_code": "PUBLIC_URL_CANDIDATE",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": "https://learn.microsoft.com/a%2Fb?q=x%26y&q=Two",
+      "host": "learn.microsoft.com",
+      "host_kind": "dns",
+      "effective_port": 443,
+      "explanation": "Candidate source accepted by deterministic URL policy.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "query-is-data",
+    "input": "https://learn.microsoft.com/?next=http%3A%2F%2F127.0.0.1",
+    "policy_available": true,
+    "expected": {
+      "original_url": "https://learn.microsoft.com/?next=http%3A%2F%2F127.0.0.1",
+      "decision": "ACCEPT",
+      "reason_code": "PUBLIC_URL_CANDIDATE",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": "https://learn.microsoft.com/?next=http%3A%2F%2F127.0.0.1",
+      "host": "learn.microsoft.com",
+      "host_kind": "dns",
+      "effective_port": 443,
+      "explanation": "Candidate source accepted by deterministic URL policy.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "empty-query",
+    "input": "https://learn.microsoft.com?",
+    "policy_available": true,
+    "expected": {
+      "original_url": "https://learn.microsoft.com?",
+      "decision": "ACCEPT",
+      "reason_code": "PUBLIC_URL_CANDIDATE",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": "https://learn.microsoft.com/?",
+      "host": "learn.microsoft.com",
+      "host_kind": "dns",
+      "effective_port": 443,
+      "explanation": "Candidate source accepted by deterministic URL policy.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "double-encoding-is-not-recursively-decoded",
+    "input": "https://learn.microsoft.com/%252e%252e/",
+    "policy_available": true,
+    "expected": {
+      "original_url": "https://learn.microsoft.com/%252e%252e/",
+      "decision": "ACCEPT",
+      "reason_code": "PUBLIC_URL_CANDIDATE",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": "https://learn.microsoft.com/%252e%252e/",
+      "host": "learn.microsoft.com",
+      "host_kind": "dns",
+      "effective_port": 443,
+      "explanation": "Candidate source accepted by deterministic URL policy.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "public-v4",
+    "input": "https://8.8.8.8/",
+    "policy_available": true,
+    "expected": {
+      "original_url": "https://8.8.8.8/",
+      "decision": "ACCEPT",
+      "reason_code": "PUBLIC_URL_CANDIDATE",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": "https://8.8.8.8/",
+      "host": "8.8.8.8",
+      "host_kind": "ipv4",
+      "effective_port": 443,
+      "explanation": "Candidate source accepted by deterministic URL policy.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "public-v6",
+    "input": "https://[2606:4700:4700::1111]/",
+    "policy_available": true,
+    "expected": {
+      "original_url": "https://[2606:4700:4700::1111]/",
+      "decision": "ACCEPT",
+      "reason_code": "PUBLIC_URL_CANDIDATE",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": "https://[2606:4700:4700::1111]/",
+      "host": "2606:4700:4700::1111",
+      "host_kind": "ipv6",
+      "effective_port": 443,
+      "explanation": "Candidate source accepted by deterministic URL policy.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "http-review",
+    "input": "http://learn.microsoft.com/",
+    "policy_available": true,
+    "expected": {
+      "original_url": "http://learn.microsoft.com/",
+      "decision": "REVIEW",
+      "reason_code": "HTTP_NOT_PERMITTED",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": "http://learn.microsoft.com/",
+      "host": "learn.microsoft.com",
+      "host_kind": "dns",
+      "effective_port": 80,
+      "explanation": "HTTP requires human assessment and cannot proceed automatically.",
+      "requested_human_action": "Supply a compliant replacement URL, abandon this source, or propose a future governed policy change."
+    }
+  },
+  {
+    "id": "http-explicit443-review",
+    "input": "HTTP://LEARN.MICROSOFT.COM:443#x",
+    "policy_available": true,
+    "expected": {
+      "original_url": "HTTP://LEARN.MICROSOFT.COM:443#x",
+      "decision": "REVIEW",
+      "reason_code": "HTTP_NOT_PERMITTED",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": "http://learn.microsoft.com:443/",
+      "host": "learn.microsoft.com",
+      "host_kind": "dns",
+      "effective_port": 443,
+      "explanation": "HTTP requires human assessment and cannot proceed automatically.",
+      "requested_human_action": "Supply a compliant replacement URL, abandon this source, or propose a future governed policy change."
+    }
+  },
+  {
+    "id": "policy-unavailable",
+    "input": "https://learn.microsoft.com/",
+    "policy_available": false,
+    "expected": {
+      "original_url": "https://learn.microsoft.com/",
+      "decision": "REJECT",
+      "reason_code": "POLICY_UNAVAILABLE",
+      "policy_version": null,
+      "canonical_url": null,
+      "host": null,
+      "host_kind": null,
+      "effective_port": null,
+      "explanation": "The required policy data is unavailable or invalid.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "null-input",
+    "input": null,
+    "policy_available": true,
+    "expected": {
+      "original_url": null,
+      "decision": "REJECT",
+      "reason_code": "INVALID_INPUT",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": null,
+      "host": null,
+      "host_kind": null,
+      "effective_port": null,
+      "explanation": "A nonempty built-in string is required.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "integer-input",
+    "input": 123,
+    "policy_available": true,
+    "expected": {
+      "original_url": null,
+      "decision": "REJECT",
+      "reason_code": "INVALID_INPUT",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": null,
+      "host": null,
+      "host_kind": null,
+      "effective_port": null,
+      "explanation": "A nonempty built-in string is required.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "empty-input",
+    "input": "",
+    "policy_available": true,
+    "expected": {
+      "original_url": "",
+      "decision": "REJECT",
+      "reason_code": "INVALID_INPUT",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": null,
+      "host": null,
+      "host_kind": null,
+      "effective_port": null,
+      "explanation": "A nonempty built-in string is required.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "http-explicit80",
+    "input": "http://learn.microsoft.com:80/",
+    "policy_available": true,
+    "expected": {
+      "original_url": "http://learn.microsoft.com:80/",
+      "decision": "REJECT",
+      "reason_code": "PORT_NOT_PERMITTED",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": null,
+      "host": null,
+      "host_kind": null,
+      "effective_port": null,
+      "explanation": "The explicit port is not permitted.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "http-loopback",
+    "input": "http://127.0.0.1/",
+    "policy_available": true,
+    "expected": {
+      "original_url": "http://127.0.0.1/",
+      "decision": "REJECT",
+      "reason_code": "DESTINATION_PROHIBITED",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": null,
+      "host": null,
+      "host_kind": null,
+      "effective_port": null,
+      "explanation": "The destination is excluded by the address or namespace policy.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "http-credentials",
+    "input": "http://user@learn.microsoft.com/",
+    "policy_available": true,
+    "expected": {
+      "original_url": "http://user@learn.microsoft.com/",
+      "decision": "REJECT",
+      "reason_code": "USERINFO_FORBIDDEN",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": null,
+      "host": null,
+      "host_kind": null,
+      "effective_port": null,
+      "explanation": "URL userinfo is forbidden.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "http-malformed-escape",
+    "input": "http://learn.microsoft.com/%ZZ",
+    "policy_available": true,
+    "expected": {
+      "original_url": "http://learn.microsoft.com/%ZZ",
+      "decision": "REJECT",
+      "reason_code": "MALFORMED_PERCENT_ESCAPE",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": null,
+      "host": null,
+      "host_kind": null,
+      "effective_port": null,
+      "explanation": "The URL contains a malformed percent escape.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "credentials-before-loopback",
+    "input": "https://user:pass@127.0.0.1/",
+    "policy_available": true,
+    "expected": {
+      "original_url": "https://user:pass@127.0.0.1/",
+      "decision": "REJECT",
+      "reason_code": "USERINFO_FORBIDDEN",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": null,
+      "host": null,
+      "host_kind": null,
+      "effective_port": null,
+      "explanation": "URL userinfo is forbidden.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "empty-userinfo",
+    "input": "https://@learn.microsoft.com/",
+    "policy_available": true,
+    "expected": {
+      "original_url": "https://@learn.microsoft.com/",
+      "decision": "REJECT",
+      "reason_code": "USERINFO_FORBIDDEN",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": null,
+      "host": null,
+      "host_kind": null,
+      "effective_port": null,
+      "explanation": "URL userinfo is forbidden.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "userinfo-before-authority-escape",
+    "input": "https://learn.microsoft.com%2F@127.0.0.1/",
+    "policy_available": true,
+    "expected": {
+      "original_url": "https://learn.microsoft.com%2F@127.0.0.1/",
+      "decision": "REJECT",
+      "reason_code": "USERINFO_FORBIDDEN",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": null,
+      "host": null,
+      "host_kind": null,
+      "effective_port": null,
+      "explanation": "URL userinfo is forbidden.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "authority-percent",
+    "input": "https://%31%32%37.0.0.1/",
+    "policy_available": true,
+    "expected": {
+      "original_url": "https://%31%32%37.0.0.1/",
+      "decision": "REJECT",
+      "reason_code": "ENCODED_AUTHORITY_FORBIDDEN",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": null,
+      "host": null,
+      "host_kind": null,
+      "effective_port": null,
+      "explanation": "Percent encoding in the URL authority is forbidden.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "raw-space",
+    "input": " https://learn.microsoft.com/",
+    "policy_available": true,
+    "expected": {
+      "original_url": " https://learn.microsoft.com/",
+      "decision": "REJECT",
+      "reason_code": "FORBIDDEN_RAW_CHARACTER",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": null,
+      "host": null,
+      "host_kind": null,
+      "effective_port": null,
+      "explanation": "The URL contains a forbidden raw character.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "raw-newline",
+    "input": "https://learn.microsoft.com/\n",
+    "policy_available": true,
+    "expected": {
+      "original_url": "https://learn.microsoft.com/\n",
+      "decision": "REJECT",
+      "reason_code": "FORBIDDEN_RAW_CHARACTER",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": null,
+      "host": null,
+      "host_kind": null,
+      "effective_port": null,
+      "explanation": "The URL contains a forbidden raw character.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "raw-backslash",
+    "input": "https://learn.microsoft.com\\@127.0.0.1/",
+    "policy_available": true,
+    "expected": {
+      "original_url": "https://learn.microsoft.com\\@127.0.0.1/",
+      "decision": "REJECT",
+      "reason_code": "FORBIDDEN_RAW_CHARACTER",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": null,
+      "host": null,
+      "host_kind": null,
+      "effective_port": null,
+      "explanation": "The URL contains a forbidden raw character.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "raw-idn",
+    "input": "https://bücher.de/",
+    "policy_available": true,
+    "expected": {
+      "original_url": "https://bücher.de/",
+      "decision": "REJECT",
+      "reason_code": "FORBIDDEN_RAW_CHARACTER",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": null,
+      "host": null,
+      "host_kind": null,
+      "effective_port": null,
+      "explanation": "The URL contains a forbidden raw character.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "punycode",
+    "input": "https://xn--bcher-kva.de/",
+    "policy_available": true,
+    "expected": {
+      "original_url": "https://xn--bcher-kva.de/",
+      "decision": "REJECT",
+      "reason_code": "HOST_NOT_PERMITTED",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": null,
+      "host": null,
+      "host_kind": null,
+      "effective_port": null,
+      "explanation": "The host representation does not satisfy the policy.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "trailing-dot",
+    "input": "https://learn.microsoft.com./",
+    "policy_available": true,
+    "expected": {
+      "original_url": "https://learn.microsoft.com./",
+      "decision": "REJECT",
+      "reason_code": "HOST_NOT_PERMITTED",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": null,
+      "host": null,
+      "host_kind": null,
+      "effective_port": null,
+      "explanation": "The host representation does not satisfy the policy.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "empty-label",
+    "input": "https://a..com/",
+    "policy_available": true,
+    "expected": {
+      "original_url": "https://a..com/",
+      "decision": "REJECT",
+      "reason_code": "HOST_NOT_PERMITTED",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": null,
+      "host": null,
+      "host_kind": null,
+      "effective_port": null,
+      "explanation": "The host representation does not satisfy the policy.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "underscore",
+    "input": "https://a_b.com/",
+    "policy_available": true,
+    "expected": {
+      "original_url": "https://a_b.com/",
+      "decision": "REJECT",
+      "reason_code": "HOST_NOT_PERMITTED",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": null,
+      "host": null,
+      "host_kind": null,
+      "effective_port": null,
+      "explanation": "The host representation does not satisfy the policy.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "integer-v4",
+    "input": "https://2130706433/",
+    "policy_available": true,
+    "expected": {
+      "original_url": "https://2130706433/",
+      "decision": "REJECT",
+      "reason_code": "HOST_NOT_PERMITTED",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": null,
+      "host": null,
+      "host_kind": null,
+      "effective_port": null,
+      "explanation": "The host representation does not satisfy the policy.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "hex-v4",
+    "input": "https://0x7f000001/",
+    "policy_available": true,
+    "expected": {
+      "original_url": "https://0x7f000001/",
+      "decision": "REJECT",
+      "reason_code": "HOST_NOT_PERMITTED",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": null,
+      "host": null,
+      "host_kind": null,
+      "effective_port": null,
+      "explanation": "The host representation does not satisfy the policy.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "octal-v4",
+    "input": "https://0177.0.0.1/",
+    "policy_available": true,
+    "expected": {
+      "original_url": "https://0177.0.0.1/",
+      "decision": "REJECT",
+      "reason_code": "HOST_NOT_PERMITTED",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": null,
+      "host": null,
+      "host_kind": null,
+      "effective_port": null,
+      "explanation": "The host representation does not satisfy the policy.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "short-v4",
+    "input": "https://127.1/",
+    "policy_available": true,
+    "expected": {
+      "original_url": "https://127.1/",
+      "decision": "REJECT",
+      "reason_code": "HOST_NOT_PERMITTED",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": null,
+      "host": null,
+      "host_kind": null,
+      "effective_port": null,
+      "explanation": "The host representation does not satisfy the policy.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "mapped-dotted",
+    "input": "https://[::ffff:192.168.1.1]/",
+    "policy_available": true,
+    "expected": {
+      "original_url": "https://[::ffff:192.168.1.1]/",
+      "decision": "REJECT",
+      "reason_code": "HOST_NOT_PERMITTED",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": null,
+      "host": null,
+      "host_kind": null,
+      "effective_port": null,
+      "explanation": "The host representation does not satisfy the policy.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "mapped-hex",
+    "input": "https://[::ffff:c0a8:101]/",
+    "policy_available": true,
+    "expected": {
+      "original_url": "https://[::ffff:c0a8:101]/",
+      "decision": "REJECT",
+      "reason_code": "DESTINATION_PROHIBITED",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": null,
+      "host": null,
+      "host_kind": null,
+      "effective_port": null,
+      "explanation": "The destination is excluded by the address or namespace policy.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "zone",
+    "input": "https://[fe80::1%25eth0]/",
+    "policy_available": true,
+    "expected": {
+      "original_url": "https://[fe80::1%25eth0]/",
+      "decision": "REJECT",
+      "reason_code": "ENCODED_AUTHORITY_FORBIDDEN",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": null,
+      "host": null,
+      "host_kind": null,
+      "effective_port": null,
+      "explanation": "Percent encoding in the URL authority is forbidden.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "uppercase-v6",
+    "input": "https://[2606:4700:4700::ABCD]/",
+    "policy_available": true,
+    "expected": {
+      "original_url": "https://[2606:4700:4700::ABCD]/",
+      "decision": "REJECT",
+      "reason_code": "HOST_NOT_PERMITTED",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": null,
+      "host": null,
+      "host_kind": null,
+      "effective_port": null,
+      "explanation": "The host representation does not satisfy the policy.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "v6-single-zero-compression",
+    "input": "https://[2606:4700:4700:1::2:3:4]/",
+    "policy_available": true,
+    "expected": {
+      "original_url": "https://[2606:4700:4700:1::2:3:4]/",
+      "decision": "REJECT",
+      "reason_code": "HOST_NOT_PERMITTED",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": null,
+      "host": null,
+      "host_kind": null,
+      "effective_port": null,
+      "explanation": "The host representation does not satisfy the policy.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "v6-future-reserved",
+    "input": "https://[2000::1]/",
+    "policy_available": true,
+    "expected": {
+      "original_url": "https://[2000::1]/",
+      "decision": "REJECT",
+      "reason_code": "DESTINATION_PROHIBITED",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": null,
+      "host": null,
+      "host_kind": null,
+      "effective_port": null,
+      "explanation": "The destination is excluded by the address or namespace policy.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "v6-allocation-gap",
+    "input": "https://[2001:1000::1]/",
+    "policy_available": true,
+    "expected": {
+      "original_url": "https://[2001:1000::1]/",
+      "decision": "REJECT",
+      "reason_code": "DESTINATION_PROHIBITED",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": null,
+      "host": null,
+      "host_kind": null,
+      "effective_port": null,
+      "explanation": "The destination is excluded by the address or namespace policy.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "v6-returned-test",
+    "input": "https://[3ffe::1]/",
+    "policy_available": true,
+    "expected": {
+      "original_url": "https://[3ffe::1]/",
+      "decision": "REJECT",
+      "reason_code": "DESTINATION_PROHIBITED",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": null,
+      "host": null,
+      "host_kind": null,
+      "effective_port": null,
+      "explanation": "The destination is excluded by the address or namespace policy.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "malformed-bracket",
+    "input": "https://[::1/",
+    "policy_available": true,
+    "expected": {
+      "original_url": "https://[::1/",
+      "decision": "REJECT",
+      "reason_code": "MALFORMED_URL",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": null,
+      "host": null,
+      "host_kind": null,
+      "effective_port": null,
+      "explanation": "The URL does not have an unambiguous absolute authority structure.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "unbracketed-v6",
+    "input": "https://2606:4700:4700::1111/",
+    "policy_available": true,
+    "expected": {
+      "original_url": "https://2606:4700:4700::1111/",
+      "decision": "REJECT",
+      "reason_code": "MALFORMED_URL",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": null,
+      "host": null,
+      "host_kind": null,
+      "effective_port": null,
+      "explanation": "The URL does not have an unambiguous absolute authority structure.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "relative",
+    "input": "//learn.microsoft.com/",
+    "policy_available": true,
+    "expected": {
+      "original_url": "//learn.microsoft.com/",
+      "decision": "REJECT",
+      "reason_code": "MALFORMED_URL",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": null,
+      "host": null,
+      "host_kind": null,
+      "effective_port": null,
+      "explanation": "The URL does not have an unambiguous absolute authority structure.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "empty-authority",
+    "input": "https:///path",
+    "policy_available": true,
+    "expected": {
+      "original_url": "https:///path",
+      "decision": "REJECT",
+      "reason_code": "MALFORMED_URL",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": null,
+      "host": null,
+      "host_kind": null,
+      "effective_port": null,
+      "explanation": "The URL does not have an unambiguous absolute authority structure.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "file-no-authority",
+    "input": "file:///etc/passwd",
+    "policy_available": true,
+    "expected": {
+      "original_url": "file:///etc/passwd",
+      "decision": "REJECT",
+      "reason_code": "MALFORMED_URL",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": null,
+      "host": null,
+      "host_kind": null,
+      "effective_port": null,
+      "explanation": "The URL does not have an unambiguous absolute authority structure.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "file-with-authority",
+    "input": "file://host.com/path",
+    "policy_available": true,
+    "expected": {
+      "original_url": "file://host.com/path",
+      "decision": "REJECT",
+      "reason_code": "UNSUPPORTED_SCHEME",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": null,
+      "host": null,
+      "host_kind": null,
+      "effective_port": null,
+      "explanation": "The URL scheme is not supported by this policy.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "ftp",
+    "input": "ftp://host.com/",
+    "policy_available": true,
+    "expected": {
+      "original_url": "ftp://host.com/",
+      "decision": "REJECT",
+      "reason_code": "UNSUPPORTED_SCHEME",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": null,
+      "host": null,
+      "host_kind": null,
+      "effective_port": null,
+      "explanation": "The URL scheme is not supported by this policy.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "custom",
+    "input": "custom://host.com/",
+    "policy_available": true,
+    "expected": {
+      "original_url": "custom://host.com/",
+      "decision": "REJECT",
+      "reason_code": "UNSUPPORTED_SCHEME",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": null,
+      "host": null,
+      "host_kind": null,
+      "effective_port": null,
+      "explanation": "The URL scheme is not supported by this policy.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "bad-percent",
+    "input": "https://learn.microsoft.com/%ZZ",
+    "policy_available": true,
+    "expected": {
+      "original_url": "https://learn.microsoft.com/%ZZ",
+      "decision": "REJECT",
+      "reason_code": "MALFORMED_PERCENT_ESCAPE",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": null,
+      "host": null,
+      "host_kind": null,
+      "effective_port": null,
+      "explanation": "The URL contains a malformed percent escape.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "encoded-crlf",
+    "input": "https://learn.microsoft.com/%0D%0AHost:x",
+    "policy_available": true,
+    "expected": {
+      "original_url": "https://learn.microsoft.com/%0D%0AHost:x",
+      "decision": "REJECT",
+      "reason_code": "FORBIDDEN_ENCODED_CHARACTER",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": null,
+      "host": null,
+      "host_kind": null,
+      "effective_port": null,
+      "explanation": "The URL encodes a forbidden control or backslash character.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "fragment-must-validate",
+    "input": "https://learn.microsoft.com/#%00",
+    "policy_available": true,
+    "expected": {
+      "original_url": "https://learn.microsoft.com/#%00",
+      "decision": "REJECT",
+      "reason_code": "FORBIDDEN_ENCODED_CHARACTER",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": null,
+      "host": null,
+      "host_kind": null,
+      "effective_port": null,
+      "explanation": "The URL encodes a forbidden control or backslash character.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "bad-component",
+    "input": "https://learn.microsoft.com/{x}",
+    "policy_available": true,
+    "expected": {
+      "original_url": "https://learn.microsoft.com/{x}",
+      "decision": "REJECT",
+      "reason_code": "INVALID_COMPONENT",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": null,
+      "host": null,
+      "host_kind": null,
+      "effective_port": null,
+      "explanation": "A URL component contains an invalid character.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "literal-dot",
+    "input": "https://learn.microsoft.com/a/../b",
+    "policy_available": true,
+    "expected": {
+      "original_url": "https://learn.microsoft.com/a/../b",
+      "decision": "REJECT",
+      "reason_code": "DOT_SEGMENT_FORBIDDEN",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": null,
+      "host": null,
+      "host_kind": null,
+      "effective_port": null,
+      "explanation": "The URL path contains a prohibited dot segment.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "encoded-dot",
+    "input": "https://learn.microsoft.com/a/%2e%2e/b",
+    "policy_available": true,
+    "expected": {
+      "original_url": "https://learn.microsoft.com/a/%2e%2e/b",
+      "decision": "REJECT",
+      "reason_code": "DOT_SEGMENT_FORBIDDEN",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": null,
+      "host": null,
+      "host_kind": null,
+      "effective_port": null,
+      "explanation": "The URL path contains a prohibited dot segment.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "mixed-dot",
+    "input": "https://learn.microsoft.com/a/.%2E/b",
+    "policy_available": true,
+    "expected": {
+      "original_url": "https://learn.microsoft.com/a/.%2E/b",
+      "decision": "REJECT",
+      "reason_code": "DOT_SEGMENT_FORBIDDEN",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": null,
+      "host": null,
+      "host_kind": null,
+      "effective_port": null,
+      "explanation": "The URL path contains a prohibited dot segment.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "port-before-private",
+    "input": "http://127.0.0.1:80/",
+    "policy_available": true,
+    "expected": {
+      "original_url": "http://127.0.0.1:80/",
+      "decision": "REJECT",
+      "reason_code": "PORT_NOT_PERMITTED",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": null,
+      "host": null,
+      "host_kind": null,
+      "effective_port": null,
+      "explanation": "The explicit port is not permitted.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "malformed-before-forbidden-escape",
+    "input": "https://learn.microsoft.com/%00%ZZ",
+    "policy_available": true,
+    "expected": {
+      "original_url": "https://learn.microsoft.com/%00%ZZ",
+      "decision": "REJECT",
+      "reason_code": "MALFORMED_PERCENT_ESCAPE",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": null,
+      "host": null,
+      "host_kind": null,
+      "effective_port": null,
+      "explanation": "The URL contains a malformed percent escape.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "raw-before-percent",
+    "input": "https://learn.microsoft.com/ %ZZ",
+    "policy_available": true,
+    "expected": {
+      "original_url": "https://learn.microsoft.com/ %ZZ",
+      "decision": "REJECT",
+      "reason_code": "FORBIDDEN_RAW_CHARACTER",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": null,
+      "host": null,
+      "host_kind": null,
+      "effective_port": null,
+      "explanation": "The URL contains a forbidden raw character.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "service-hermes",
+    "input": "https://hermes/",
+    "policy_available": true,
+    "expected": {
+      "original_url": "https://hermes/",
+      "decision": "REJECT",
+      "reason_code": "HOST_NOT_PERMITTED",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": null,
+      "host": null,
+      "host_kind": null,
+      "effective_port": null,
+      "explanation": "The host representation does not satisfy the policy.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "service-postgres",
+    "input": "https://postgres/",
+    "policy_available": true,
+    "expected": {
+      "original_url": "https://postgres/",
+      "decision": "REJECT",
+      "reason_code": "HOST_NOT_PERMITTED",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": null,
+      "host": null,
+      "host_kind": null,
+      "effective_port": null,
+      "explanation": "The host representation does not satisfy the policy.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "service-economic-control",
+    "input": "https://economic-control/",
+    "policy_available": true,
+    "expected": {
+      "original_url": "https://economic-control/",
+      "decision": "REJECT",
+      "reason_code": "HOST_NOT_PERMITTED",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": null,
+      "host": null,
+      "host_kind": null,
+      "effective_port": null,
+      "explanation": "The host representation does not satisfy the policy.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "service-lm-studio",
+    "input": "https://lm-studio/",
+    "policy_available": true,
+    "expected": {
+      "original_url": "https://lm-studio/",
+      "decision": "REJECT",
+      "reason_code": "HOST_NOT_PERMITTED",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": null,
+      "host": null,
+      "host_kind": null,
+      "effective_port": null,
+      "explanation": "The host representation does not satisfy the policy.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "service-controlops-msft-validator",
+    "input": "https://controlops-msft-validator/",
+    "policy_available": true,
+    "expected": {
+      "original_url": "https://controlops-msft-validator/",
+      "decision": "REJECT",
+      "reason_code": "HOST_NOT_PERMITTED",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": null,
+      "host": null,
+      "host_kind": null,
+      "effective_port": null,
+      "explanation": "The host representation does not satisfy the policy.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "service-localhost",
+    "input": "https://localhost/",
+    "policy_available": true,
+    "expected": {
+      "original_url": "https://localhost/",
+      "decision": "REJECT",
+      "reason_code": "HOST_NOT_PERMITTED",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": null,
+      "host": null,
+      "host_kind": null,
+      "effective_port": null,
+      "explanation": "The host representation does not satisfy the policy.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "port-80",
+    "input": "https://learn.microsoft.com:80/",
+    "policy_available": true,
+    "expected": {
+      "original_url": "https://learn.microsoft.com:80/",
+      "decision": "REJECT",
+      "reason_code": "PORT_NOT_PERMITTED",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": null,
+      "host": null,
+      "host_kind": null,
+      "effective_port": null,
+      "explanation": "The explicit port is not permitted.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "port-5432",
+    "input": "https://learn.microsoft.com:5432/",
+    "policy_available": true,
+    "expected": {
+      "original_url": "https://learn.microsoft.com:5432/",
+      "decision": "REJECT",
+      "reason_code": "PORT_NOT_PERMITTED",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": null,
+      "host": null,
+      "host_kind": null,
+      "effective_port": null,
+      "explanation": "The explicit port is not permitted.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "port-1234",
+    "input": "https://learn.microsoft.com:1234/",
+    "policy_available": true,
+    "expected": {
+      "original_url": "https://learn.microsoft.com:1234/",
+      "decision": "REJECT",
+      "reason_code": "PORT_NOT_PERMITTED",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": null,
+      "host": null,
+      "host_kind": null,
+      "effective_port": null,
+      "explanation": "The explicit port is not permitted.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "port-8443",
+    "input": "https://learn.microsoft.com:8443/",
+    "policy_available": true,
+    "expected": {
+      "original_url": "https://learn.microsoft.com:8443/",
+      "decision": "REJECT",
+      "reason_code": "PORT_NOT_PERMITTED",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": null,
+      "host": null,
+      "host_kind": null,
+      "effective_port": null,
+      "explanation": "The explicit port is not permitted.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "port-18700",
+    "input": "https://learn.microsoft.com:18700/",
+    "policy_available": true,
+    "expected": {
+      "original_url": "https://learn.microsoft.com:18700/",
+      "decision": "REJECT",
+      "reason_code": "PORT_NOT_PERMITTED",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": null,
+      "host": null,
+      "host_kind": null,
+      "effective_port": null,
+      "explanation": "The explicit port is not permitted.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "port-18701",
+    "input": "https://learn.microsoft.com:18701/",
+    "policy_available": true,
+    "expected": {
+      "original_url": "https://learn.microsoft.com:18701/",
+      "decision": "REJECT",
+      "reason_code": "PORT_NOT_PERMITTED",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": null,
+      "host": null,
+      "host_kind": null,
+      "effective_port": null,
+      "explanation": "The explicit port is not permitted.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "port-18702",
+    "input": "https://learn.microsoft.com:18702/",
+    "policy_available": true,
+    "expected": {
+      "original_url": "https://learn.microsoft.com:18702/",
+      "decision": "REJECT",
+      "reason_code": "PORT_NOT_PERMITTED",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": null,
+      "host": null,
+      "host_kind": null,
+      "effective_port": null,
+      "explanation": "The explicit port is not permitted.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "port-18703",
+    "input": "https://learn.microsoft.com:18703/",
+    "policy_available": true,
+    "expected": {
+      "original_url": "https://learn.microsoft.com:18703/",
+      "decision": "REJECT",
+      "reason_code": "PORT_NOT_PERMITTED",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": null,
+      "host": null,
+      "host_kind": null,
+      "effective_port": null,
+      "explanation": "The explicit port is not permitted.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "port-18704",
+    "input": "https://learn.microsoft.com:18704/",
+    "policy_available": true,
+    "expected": {
+      "original_url": "https://learn.microsoft.com:18704/",
+      "decision": "REJECT",
+      "reason_code": "PORT_NOT_PERMITTED",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": null,
+      "host": null,
+      "host_kind": null,
+      "effective_port": null,
+      "explanation": "The explicit port is not permitted.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "port-18705",
+    "input": "https://learn.microsoft.com:18705/",
+    "policy_available": true,
+    "expected": {
+      "original_url": "https://learn.microsoft.com:18705/",
+      "decision": "REJECT",
+      "reason_code": "PORT_NOT_PERMITTED",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": null,
+      "host": null,
+      "host_kind": null,
+      "effective_port": null,
+      "explanation": "The explicit port is not permitted.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "invalid-port-empty",
+    "input": "https://learn.microsoft.com:/",
+    "policy_available": true,
+    "expected": {
+      "original_url": "https://learn.microsoft.com:/",
+      "decision": "REJECT",
+      "reason_code": "INVALID_PORT",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": null,
+      "host": null,
+      "host_kind": null,
+      "effective_port": null,
+      "explanation": "The explicit port is invalid or noncanonical.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "invalid-port-0443",
+    "input": "https://learn.microsoft.com:0443/",
+    "policy_available": true,
+    "expected": {
+      "original_url": "https://learn.microsoft.com:0443/",
+      "decision": "REJECT",
+      "reason_code": "INVALID_PORT",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": null,
+      "host": null,
+      "host_kind": null,
+      "effective_port": null,
+      "explanation": "The explicit port is invalid or noncanonical.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "invalid-port-+443",
+    "input": "https://learn.microsoft.com:+443/",
+    "policy_available": true,
+    "expected": {
+      "original_url": "https://learn.microsoft.com:+443/",
+      "decision": "REJECT",
+      "reason_code": "INVALID_PORT",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": null,
+      "host": null,
+      "host_kind": null,
+      "effective_port": null,
+      "explanation": "The explicit port is invalid or noncanonical.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "invalid-port-0",
+    "input": "https://learn.microsoft.com:0/",
+    "policy_available": true,
+    "expected": {
+      "original_url": "https://learn.microsoft.com:0/",
+      "decision": "REJECT",
+      "reason_code": "INVALID_PORT",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": null,
+      "host": null,
+      "host_kind": null,
+      "effective_port": null,
+      "explanation": "The explicit port is invalid or noncanonical.",
+      "requested_human_action": null
+    }
+  },
+  {
+    "id": "invalid-port-65536",
+    "input": "https://learn.microsoft.com:65536/",
+    "policy_available": true,
+    "expected": {
+      "original_url": "https://learn.microsoft.com:65536/",
+      "decision": "REJECT",
+      "reason_code": "INVALID_PORT",
+      "policy_version": "controlops-public-url/v1.0.0",
+      "canonical_url": null,
+      "host": null,
+      "host_kind": null,
+      "effective_port": null,
+      "explanation": "The explicit port is invalid or noncanonical.",
+      "requested_human_action": null
+    }
+  }
+]
