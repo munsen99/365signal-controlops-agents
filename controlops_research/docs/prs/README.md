@@ -8,7 +8,7 @@ Future specifications record intent; they do not authorise implementation.
 | [PR0](PR0-research-scaffold.md) | Scaffold and architecture invariants | IN PROGRESS |
 | [PR1](PR1-public-url-policy.md) | Public URL policy | ACCEPTED |
 | [PR2](PR2-fetch-snapshot.md) | Controlled fetch, snapshot and hash | IMPLEMENTED AND TESTED — PENDING REVIEW |
-| [PR3](PR3-evidence-plane.md) | Evidence Plane and citation verification | PLANNED |
+| [PR3](PR3-evidence-plane.md) | Evidence Plane and citation verification | ACCEPTED WITH FIXES |
 | [PR4](PR4-budget-gate.md) | Budget and escalation gate | PLANNED |
 | [PR5](PR5-local-runtime-sandbox.md) | Local runtime sandbox and GPU protection | PLANNED |
 | [PR6](PR6-local-research-loop.md) | Qwen local research loop | PLANNED |

@@ -18,6 +18,9 @@ Evidence, not model output, is the system of record.
 
 Research creates evidence. Review creates knowledge.
 
+PR3 binds citations to spans in stored PR2 retrievals and verifies them by
+rehashing and deterministic re-extraction. It adds no model, RAG, or fetch path.
+
 Future publication and RAG ingestion are downstream of reviewed/approved
 knowledge and are not part of PR0. Only approved knowledge enters the trusted RAG.
 See the [architecture invariants](docs/architecture-invariants.md).

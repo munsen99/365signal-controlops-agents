@@ -1,0 +1,29 @@
+{
+  "schema_version": "controlops-evidence-fixtures/v1.0.0",
+  "spans": [
+    {
+      "kind": "plain",
+      "visible_text": "ControlOps café\nSecond line.",
+      "start_offset": 0,
+      "end_offset": 15,
+      "quoted_text": "ControlOps café",
+      "excerpt_sha256": "f4d5c8ecd970952933df45ff4493e08ff0beccbfe0011767602cbfabd7c65317"
+    },
+    {
+      "kind": "html",
+      "visible_text": "Fixture & Test\nControlOps\nHello public source.\nLast line.",
+      "start_offset": 26,
+      "end_offset": 46,
+      "quoted_text": "Hello public source.",
+      "excerpt_sha256": "d58639d24bac5ffe5041f462ebce47223ba668e5ca4a90e86e71380bf0507300"
+    },
+    {
+      "kind": "unicode",
+      "visible_text": "ControlOps £ café 🚀 assurance",
+      "start_offset": 20,
+      "end_offset": 29,
+      "quoted_text": "assurance",
+      "excerpt_sha256": "9b2d53abee432c914a126f5f79a306160b6dd2eebfa9d46e7691f4f29790f0eb"
+    }
+  ]
+}

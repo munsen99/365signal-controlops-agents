@@ -73,6 +73,33 @@ def test_pr2_network_module_preserves_authority_and_dependency_boundary():
     assert "os.environ" not in source and "os.getenv" not in source
 
 
+def test_pr3_evidence_plane_has_no_network_or_policy_authority():
+    forbidden_imports = {
+        "socket", "urllib.request", "httpx", "requests", "aiohttp",
+        "psycopg", "psycopg2", "asyncpg", "pg8000", "sqlalchemy",
+        "lancedb", "hermes", "validator", "openai", "anthropic",
+    }
+    for name in ("evidence.py", "verify.py"):
+        source = (SOURCE / name).read_text(encoding="utf-8")
+        tree = ast.parse(source)
+        imports = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                imports.update(alias.name for alias in node.names)
+            elif isinstance(node, ast.ImportFrom):
+                imports.add(("." * node.level) + (node.module or ""))
+        assert not any(
+            imported == forbidden or imported.startswith(forbidden + ".")
+            for imported in imports
+            for forbidden in forbidden_imports
+        )
+        assert not any(name.endswith((".fetch", ".policy_data")) for name in imports)
+        assert "parse_content_contract" not in source
+    verifier = (SOURCE / "verify.py").read_text(encoding="utf-8")
+    assert "SnapshotStore" not in verifier
+    assert "extract_visible_text" in verifier
+
+
 @pytest.mark.parametrize("source", [
     "import aea", "import aea.control as control", "from aea import types",
     "from aea.policy import service", "import os, aea",
