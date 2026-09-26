@@ -73,9 +73,9 @@ def parse_unsigned_native_amount(value: object) -> Decimal:
 
 
 def format_asset_amount(value: Decimal, asset: str) -> str:
-    # The accepted ledger stores monetary mirrors to 8 decimal places. Exact
-    # EVM wei remains in chain_transaction_evidence and is never discarded.
-    places = Decimal("0.00000001") if asset == "ETH" else Decimal("0.000001")
+    # EVM native balances and fees are wei-denominated. Comparing them at the
+    # legacy eight-decimal precision can hide a material gas mismatch.
+    places = Decimal("0.000000000000000001") if asset == "ETH" else Decimal("0.000001")
     return format(value.quantize(places), "f")
 
 

@@ -31,6 +31,7 @@ class PolicySignerClient:
         signer_token: str,
         signer_app: Any | None = None,
         signer_sock: str | None = None,
+        timeout_seconds: float = 180.0,
     ) -> None:
         if not hmac_key or not signer_token:
             raise ValueError("policy signer client requires HMAC key and signer token")
@@ -40,6 +41,7 @@ class PolicySignerClient:
         self._signer_token = signer_token
         self._signer_app = signer_app
         self._signer_sock = signer_sock
+        self._timeout_seconds = timeout_seconds
 
     def _headers(self) -> dict[str, str]:
         return {"Authorization": f"Bearer {self._signer_token}"}
@@ -98,6 +100,7 @@ class PolicySignerClient:
                 "fee_wei": payload.get("fee_wei"),
                 "gas_used": payload.get("gas_used"),
                 "effective_gas_price_wei": payload.get("effective_gas_price_wei"),
+                "l1_fee_wei": payload.get("l1_fee_wei"),
                 "rail": payload.get("rail"),
                 "network": payload.get("network"),
                 "chain_id": payload.get("chain_id"),
@@ -110,10 +113,12 @@ class PolicySignerClient:
         headers = self._headers()
         if self._signer_app is not None:
             transport = httpx.ASGITransport(app=self._signer_app)
-            async with httpx.AsyncClient(transport=transport, base_url="http://signer") as client:
+            async with httpx.AsyncClient(transport=transport, base_url="http://signer",
+                                         timeout=self._timeout_seconds) as client:
                 return await client.post("/v1/sign", json=body, headers=headers)
         if not self._signer_sock:
             raise httpx.ConnectError("signer socket not configured")
         transport = httpx.AsyncHTTPTransport(uds=self._signer_sock)
-        async with httpx.AsyncClient(transport=transport, base_url="http://signer") as client:
+        async with httpx.AsyncClient(transport=transport, base_url="http://signer",
+                                     timeout=self._timeout_seconds) as client:
             return await client.post("/v1/sign", json=body, headers=headers)

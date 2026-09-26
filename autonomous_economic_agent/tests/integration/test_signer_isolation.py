@@ -836,3 +836,12 @@ def test_live_supervisor_state_inconsistent_with_file(
         )
         conn.commit()
         conn.close()
+
+
+def test_signer_scrubber_keeps_public_token_contract_only() -> None:
+    from aea.signer.service import _scrub
+
+    public = "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
+    assert _scrub({"token_contract": public, "signer_token": "secret-value"}) == {
+        "token_contract": public,
+    }

@@ -368,6 +368,7 @@ class PolicyService:
             "fee_wei": signed.fee_wei,
             "gas_used": signed.gas_used,
             "effective_gas_price_wei": signed.effective_gas_price_wei,
+            "l1_fee_wei": signed.l1_fee_wei,
             "rail": signed.rail,
             "network": signed.network,
             "chain_id": signed.chain_id,

@@ -127,7 +127,7 @@ class CostCreate(AeaBaseModel):
 
     @field_serializer("amount")
     def _dump_money(self, value: Decimal) -> str:
-        return format_amount(value)
+        return format(value, "f") if self.asset == "ETH" else format_amount(value)
 
 
 class ChainEvidenceCreate(AeaBaseModel):
@@ -140,6 +140,7 @@ class ChainEvidenceCreate(AeaBaseModel):
     token_contract: str = Field(min_length=1)
     gas_used: int = Field(ge=0)
     effective_gas_price_wei: int = Field(ge=0)
+    l1_fee_wei: int = Field(default=0, ge=0)
     fee_wei: int = Field(ge=0)
     fee_usdc_snapshot: Decimal = Field(gt=0)
     fee_rate_source: str = Field(min_length=1)

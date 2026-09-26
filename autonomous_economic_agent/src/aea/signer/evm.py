@@ -178,7 +178,7 @@ class EvmSigner:
             return HttpCode.AGENT_FROZEN
         if not self.is_effectively_enabled():
             return HttpCode.SIGNER_DISABLED
-        if self._config.network == "base-mainnet":
+        if self._config.network in {"base-mainnet", "base-sepolia"}:
             gate = inspect_live_spend_gate(self._live_spend_path, operator_intent=self._live_operator_intent)
             if not gate.enabled:
                 return HttpCode.LIVE_SPEND_DISABLED
@@ -271,6 +271,7 @@ class EvmSigner:
                 correlation_id=approved.correlation_id, tx_id=signed.transaction_hash,
                 canonical_hash=canonical, fee_wei=verified.fee_wei, gas_used=verified.gas_used,
                 effective_gas_price_wei=verified.effective_gas_price_wei, rail="evm",
+                l1_fee_wei=verified.l1_fee_wei,
                 network=self._config.network, chain_id=self._config.chain_id,
                 token_contract=self._config.token_contract, block_number=verified.block_number)
             with self._lock:

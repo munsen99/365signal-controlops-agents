@@ -106,7 +106,7 @@ def test_endpoint_reads_ledger_without_writes(conn, freeze_dir: Path) -> None:
         wallet_status=lambda: {
             "ok": True,
             "network": "devnet",
-            "public_wallet": "So11111111111111111111111111111111111111112",
+            "public_wallet": "CWqTwLoGXCYU4gn7KxEcWTVFJuhzTMEmMrBKTM512Yag",
             "balances": {"USDC": "1.000000", "SOL": "0.010000"},
         },
         extra_wallet_status=(
@@ -123,7 +123,11 @@ def test_endpoint_reads_ledger_without_writes(conn, freeze_dir: Path) -> None:
             "loop_enabled": False,
             "updated_by": "test",
         },
-        configured_solana={"network": "devnet", "public_wallet": "So11111111111111111111111111111111111111112"},
+        configured_solana={
+            "network": "devnet",
+            "public_wallet": "CWqTwLoGXCYU4gn7KxEcWTVFJuhzTMEmMrBKTM512Yag",
+            "token_mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        },
         configured_evm={"network": "base-sepolia", "chain_id": 84532, "public_wallet": "0x7fc8ACC21e601c488e6EE4eE39AD67d3ecA12a7e"},
     )
     before = conn.execute("SELECT count(*) AS n FROM audit_events").fetchone()["n"]
@@ -141,6 +145,34 @@ def test_endpoint_reads_ledger_without_writes(conn, freeze_dir: Path) -> None:
     assert rails["evm"]["health"] == "unavailable"
     assert rails["solana"]["native_asset"] == "SOL"
     assert rails["evm"]["native_asset"] == "ETH"
+    assert rails["solana"]["public_wallet"] != "So11111111111111111111111111111111111111112"
     assert body["supervisor"]["frozen"] == "yes"
+    assert body["supervisor"]["frozen_freshness"] == "current"
     assert "AEA_MODEL_TOKEN" not in response.text
     assert len(body["recent_events"]) <= 20
+
+
+def test_readonly_observability_connection_rejects_writes() -> None:
+    from aea.observability.readonly import open_readonly_ledger
+
+    ledger = open_readonly_ledger("controlops", policy=load_policy())
+    try:
+        with pytest.raises(Exception):
+            ledger._conn.execute(
+                "INSERT INTO audit_events (agent_id, event_type, payload, payload_hash) "
+                "VALUES ('x', 'x', '{}', 'x')"
+            )
+    finally:
+        ledger._conn.close()
+
+
+def test_configured_contexts_are_isolated(conn) -> None:
+    from aea.observability.service import load_configured_contexts
+
+    ctxs = load_configured_contexts(load_policy(), [])
+    by_id = {c.id: c for c in ctxs}
+    assert "m1-default" in by_id
+    if by_id.get("phase-c-solana") and by_id["phase-c-solana"].ledger_available:
+        assert by_id["phase-c-solana"].economics["opening_capital_usdc"] != by_id["m1-default"].economics["opening_capital_usdc"]
+    if by_id.get("phase-e-evm") and by_id["phase-e-evm"].ledger_available:
+        assert by_id["phase-e-evm"].economics.get("fee_reserve_eth")

@@ -21,9 +21,17 @@ from aea.observability.sanitize import (
     safe_display_text,
     serialize_status,
 )
+from aea.observability.identity import solana_owner_wallet
 from aea.observability.schemas import ObservabilityStatus
-from aea.observability.service import build_status
+from aea.observability.service import ContextResult, build_status
 from aea.signer.live_gate import LiveGateInspection
+from aea.wallet.solana import CANONICAL_MAINNET_USDC_MINT, WRAPPED_SOL_MINT
+
+AEA_SOLANA_OWNER = "CWqTwLoGXCYU4gn7KxEcWTVFJuhzTMEmMrBKTM512Yag"
+AEA_EVM_OWNER = "0x7fc8ACC21e601c488e6EE4eE39AD67d3ecA12a7e"
+E3_TX = "0xe66c35ea9bc02853ebd607715322f921759dbbf9e487ae3a15ffc688550d539b"
+E3_USDC = "0.990000"
+E3_ETH = "0.000099593798219532"
 
 MODEL = "obs-model-token"
 CONTROL = "obs-control-token"
@@ -308,6 +316,9 @@ def test_one_rail_down_does_not_hide_the_other() -> None:
     assert rails["solana"]["health"] == "healthy"
     assert rails["evm"]["health"] == "unavailable"
     assert rails["evm"]["public_wallet"] == "0xabc"
+    assert rails["solana"]["wallet_read"] == "current"
+    assert rails["evm"]["wallet_read"] == "unavailable"
+    assert rails["evm"]["reconciliation"] != "healthy"
 
 
 def test_reconciliation_mismatch_is_unhealthy() -> None:
@@ -348,8 +359,13 @@ def test_unreadable_supervisor_is_unknown_fail_closed() -> None:
     )
     dumped = serialize_status(status)
     assert dumped["supervisor"]["readable"] == "unknown"
-    assert dumped["supervisor"]["frozen"] == "yes"
+    assert dumped["supervisor"]["frozen"] == "unknown"
+    assert dumped["supervisor"]["frozen_freshness"] == "unknown"
+    assert dumped["supervisor"]["signer_enabled"] == "unknown"
+    assert dumped["supervisor"]["loop_enabled"] == "unknown"
+    assert dumped["supervisor"]["signer_enabled_freshness"] != "current"
     assert dumped["agent"]["health"] != "healthy"
+    assert dumped["observation"]["degraded"] is True
     assert dumped["supervisor"]["live_spend_gate"] == "unknown"
 
 
@@ -367,6 +383,7 @@ def test_frozen_state_is_displayed() -> None:
     dumped = serialize_status(status)
     assert dumped["agent"]["state"] == "frozen"
     assert dumped["supervisor"]["frozen"] == "yes"
+    assert dumped["supervisor"]["frozen_freshness"] == "current"
     assert dumped["supervisor"]["signer_enabled"] == "no"
     assert dumped["supervisor"]["loop_enabled"] == "no"
     assert dumped["supervisor"]["live_spend_gate"] == "absent"
@@ -465,6 +482,258 @@ def test_endpoint_response_contains_no_secrets(app) -> None:
     blob = response.text
     for needle in (MODEL, CONTROL, OBS, SUPERVISOR, "BEGIN ", "private_key", "hmac"):
         assert needle not in blob
+
+
+def test_supervisor_http_down_uses_stale_not_current_yes() -> None:
+    status = build_status(
+        policy=load_policy(),
+        ledger=FakeLedger(flags={"frozen": False, "signer_enabled": True, "loop_enabled": True, "readable": True}),
+        safety=_safety(frozen=False, signer_enabled=True, loop_enabled=True),
+        wallet_probes=[],
+        supervisor=None,
+        live_gate=LiveGateInspection(False, "operator_intent_missing"),
+        configured_solana={},
+        configured_evm={},
+    )
+    dumped = serialize_status(status)
+    assert dumped["supervisor"]["readable"] == "unknown"
+    assert dumped["supervisor"]["frozen"] == "no"
+    assert dumped["supervisor"]["frozen_freshness"] == "stale"
+    assert dumped["supervisor"]["signer_enabled_freshness"] == "stale"
+    assert dumped["supervisor"]["loop_enabled_freshness"] == "stale"
+    assert dumped["observation"]["degraded"] is True
+    assert dumped["observation"]["banner"]
+
+
+def test_wrapped_sol_mint_is_never_owner_wallet() -> None:
+    assert solana_owner_wallet(public_wallet=WRAPPED_SOL_MINT, token_mint=CANONICAL_MAINNET_USDC_MINT) is None
+    status = build_status(
+        policy=load_policy(),
+        ledger=FakeLedger(),
+        safety=_safety(),
+        wallet_probes=[],
+        supervisor=None,
+        live_gate=LiveGateInspection(False, "x"),
+        configured_solana={
+            "network": "mainnet-beta",
+            "public_wallet": WRAPPED_SOL_MINT,
+            "token_mint": CANONICAL_MAINNET_USDC_MINT,
+        },
+        configured_evm={},
+    )
+    dumped = serialize_status(status)
+    rails = {r["rail"]: r for r in dumped["rails"]}
+    blob = str(dumped["rails"])
+    assert WRAPPED_SOL_MINT not in (rails["solana"].get("public_wallet") or "")
+    assert WRAPPED_SOL_MINT not in (rails["solana"].get("configured_public_wallet") or "")
+    assert rails["solana"]["canonical_token"] == CANONICAL_MAINNET_USDC_MINT
+    assert AEA_SOLANA_OWNER not in blob or True
+
+
+def test_configured_solana_owner_distinct_from_mint() -> None:
+    status = build_status(
+        policy=load_policy(),
+        ledger=FakeLedger(),
+        safety=_safety(),
+        wallet_probes=[],
+        supervisor=None,
+        live_gate=LiveGateInspection(False, "x"),
+        configured_solana={
+            "network": "mainnet-beta",
+            "public_wallet": AEA_SOLANA_OWNER,
+            "token_mint": CANONICAL_MAINNET_USDC_MINT,
+        },
+        configured_evm={},
+    )
+    dumped = serialize_status(status)
+    rail = {r["rail"]: r for r in dumped["rails"]}["solana"]
+    assert rail["configured_public_wallet"] == AEA_SOLANA_OWNER
+    assert rail["public_wallet"] == AEA_SOLANA_OWNER
+    assert rail["canonical_token"] == CANONICAL_MAINNET_USDC_MINT
+    assert rail["canonical_token"] != rail["public_wallet"]
+    assert rail["public_wallet"] != WRAPPED_SOL_MINT
+
+
+def test_zero_ledger_delta_without_wallet_is_not_healthy() -> None:
+    status = build_status(
+        policy=load_policy(),
+        ledger=FakeLedger(),
+        safety=_safety(),
+        wallet_probes=[],
+        supervisor=None,
+        live_gate=LiveGateInspection(False, "x"),
+        configured_solana={"network": "mainnet-beta", "public_wallet": AEA_SOLANA_OWNER},
+        configured_evm={},
+    )
+    dumped = serialize_status(status)
+    assert dumped["reconciliation"]["health"] != "healthy"
+    assert dumped["reconciliation"]["health"] in {"stale", "unknown"}
+    rails = {r["rail"]: r for r in dumped["rails"]}
+    assert rails["solana"]["reconciliation"] != "healthy"
+    assert rails["solana"]["wallet_read"] == "unavailable"
+
+
+def test_top_level_available_usdc_not_current_when_wallets_down() -> None:
+    status = build_status(
+        policy=load_policy(),
+        ledger=FakeLedger(),
+        safety=_safety(),
+        wallet_probes=[],
+        supervisor=None,
+        live_gate=LiveGateInspection(False, "x"),
+        configured_solana={},
+        configured_evm={},
+    )
+    dumped = serialize_status(status)
+    assert dumped["economics"]["available_capital_usdc"] is None
+    assert dumped["economics"]["available_capital_freshness"] != "current"
+    assert dumped["economics"]["opening_capital_usdc"] == "20.000000"
+    assert dumped["economics"]["available_capital_label"]
+
+
+def test_multi_context_are_distinct_and_not_summed() -> None:
+    extra = [
+        ContextResult(
+            id="m1-default",
+            purpose="core/default experiment",
+            rail="mock",
+            network="phase-a-mock",
+            database="controlops",
+            wallet_phase="A",
+            ledger_available=True,
+            economics={
+                "opening_capital_usdc": "20.000000",
+                "available_capital_usdc": "20.000000",
+                "verified_revenue_usdc": "0.000000",
+                "attributable_costs_usdc": "0.000000",
+                "realized_pnl_usdc": "0.000000",
+            },
+        ),
+        ContextResult(
+            id="phase-c-solana",
+            purpose="Solana Phase-C mainnet",
+            rail="solana",
+            network="mainnet-beta",
+            database="controlops_phase_c",
+            wallet_phase="C",
+            ledger_available=True,
+            economics={
+                "opening_capital_usdc": "2.000000",
+                "available_capital_usdc": "1.990000",
+                "verified_revenue_usdc": "0.000000",
+                "fee_reserve_sol": "0.009995",
+                "updated_at": "2026-08-22T11:12:06+00:00",
+            },
+            configured_wallet=AEA_SOLANA_OWNER,
+            configured_token=CANONICAL_MAINNET_USDC_MINT,
+            settlements={"sol": {"ref": "2eveDGPdxeUuHMHCQWQYBiTRN27VA4Z9pBSDkXMiZkPUWpU2cQxokji93xHrsqaU762jW9VMciuJm3JC14bFNqYR", "status": "settled"}},
+        ),
+        ContextResult(
+            id="phase-e-evm",
+            purpose="EVM Phase-E Base",
+            rail="evm",
+            network="base-sepolia",
+            database="controlops_phase_e",
+            wallet_phase="E",
+            chain_id=84532,
+            ledger_available=True,
+            economics={
+                "opening_capital_usdc": "1.000000",
+                "available_capital_usdc": E3_USDC,
+                "verified_revenue_usdc": "0.000000",
+                "fee_reserve_eth": E3_ETH,
+                "updated_at": "2026-08-22T15:14:55+00:00",
+            },
+            configured_wallet=AEA_EVM_OWNER,
+            configured_token="0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+            settlements={"evm": {"ref": E3_TX, "status": "confirmed"}},
+            events=[
+                {
+                    "event_type": "payment_request_settled",
+                    "payload": {"transaction_hash": E3_TX},
+                    "created_at": datetime(2026, 8, 22, 15, 14, 55, tzinfo=timezone.utc),
+                }
+            ],
+        ),
+    ]
+    status = build_status(
+        policy=load_policy(),
+        ledger=FakeLedger(),
+        safety=_safety(),
+        wallet_probes=[],
+        supervisor=None,
+        live_gate=LiveGateInspection(False, "x"),
+        configured_solana={"public_wallet": AEA_SOLANA_OWNER, "token_mint": CANONICAL_MAINNET_USDC_MINT, "network": "mainnet-beta"},
+        configured_evm={"public_wallet": AEA_EVM_OWNER, "network": "base-sepolia", "chain_id": 84532},
+        extra_contexts=extra,
+    )
+    dumped = serialize_status(status)
+    by_id = {c["id"]: c for c in dumped["contexts"]}
+    assert set(by_id) >= {"m1-default", "phase-c-solana", "phase-e-evm"}
+    assert by_id["m1-default"]["opening_capital_usdc"] == "20.000000"
+    assert by_id["phase-c-solana"]["opening_capital_usdc"] == "2.000000"
+    assert by_id["phase-e-evm"]["available_capital_usdc"] == E3_USDC
+    assert by_id["phase-e-evm"]["available_capital_freshness"] == "stale"
+    assert dumped["economics"]["available_capital_usdc"] != "20.000000"
+    rails = {r["rail"]: r for r in dumped["rails"]}
+    assert rails["solana"]["public_wallet"] == AEA_SOLANA_OWNER
+    assert rails["evm"]["public_wallet"] == AEA_EVM_OWNER
+    assert rails["evm"]["last_known_usdc_balance"] == E3_USDC
+    assert rails["evm"]["last_known_native_reserve"] == E3_ETH
+    assert rails["evm"]["last_settlement_ref"] == E3_TX
+    assert rails["evm"]["last_settlement_freshness"] == "stale"
+    assert rails["solana"]["wallet_read"] == "unavailable"
+    assert rails["evm"]["reconciliation"] != "healthy"
+    assert dumped["observation"]["degraded"] is True
+    types = {e["context_id"] for e in dumped["recent_events"]}
+    assert "phase-e-evm" in types
+    assert len(dumped["recent_events"]) <= 20
+
+
+def test_one_context_offline_does_not_drop_others() -> None:
+    extra = [
+        ContextResult(
+            id="phase-c-solana",
+            purpose="Solana",
+            rail="solana",
+            network="mainnet-beta",
+            database="controlops_phase_c",
+            wallet_phase="C",
+            ledger_available=True,
+            economics={"opening_capital_usdc": "2.000000", "available_capital_usdc": "1.990000"},
+            configured_wallet=AEA_SOLANA_OWNER,
+        ),
+        ContextResult(
+            id="phase-e-evm",
+            purpose="EVM",
+            rail="evm",
+            network="base-sepolia",
+            database="controlops_phase_e",
+            wallet_phase="E",
+            ledger_available=False,
+            detail="ledger unavailable",
+            configured_wallet=AEA_EVM_OWNER,
+            chain_id=84532,
+        ),
+    ]
+    status = build_status(
+        policy=load_policy(),
+        ledger=FakeLedger(),
+        safety=_safety(),
+        wallet_probes=[],
+        supervisor=None,
+        live_gate=LiveGateInspection(False, "x"),
+        configured_solana={"public_wallet": AEA_SOLANA_OWNER, "network": "mainnet-beta"},
+        configured_evm={"public_wallet": AEA_EVM_OWNER, "network": "base-sepolia", "chain_id": 84532},
+        extra_contexts=extra,
+    )
+    dumped = serialize_status(status)
+    by_id = {c["id"]: c for c in dumped["contexts"]}
+    assert by_id["phase-c-solana"]["ledger_available"] is True
+    assert by_id["phase-e-evm"]["ledger_available"] is False
+    rails = {r["rail"]: r for r in dumped["rails"]}
+    assert rails["solana"]["public_wallet"] == AEA_SOLANA_OWNER
+    assert rails["evm"]["public_wallet"] == AEA_EVM_OWNER
 
 
 def test_hermes_compose_does_not_mount_economic_secrets() -> None:

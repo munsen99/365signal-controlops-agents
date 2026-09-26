@@ -864,6 +864,14 @@ def create_app(
     )
 
 
+def _configure_runtime_connection(conn: Any) -> Any:
+    """Make durable supervisor mutations immediately visible cross-process."""
+    # ledger.db.connect() sets search_path, which opens an initial transaction.
+    conn.commit()
+    conn.autocommit = True
+    return conn
+
+
 def create_app_from_env() -> SupervisorService:
     assert_no_spend_secrets()
     token = _read_token("AEA_SUPERVISOR_TOKEN", "AEA_SUPERVISOR_TOKEN_FILE")
@@ -876,7 +884,11 @@ def create_app_from_env() -> SupervisorService:
 
     from aea.ledger.db import connect
 
-    conn = connect(role="economic_supervisor")
+    conn = _configure_runtime_connection(connect(role="economic_supervisor"))
+    # This is a long-lived service connection, not a request-scoped ledger
+    # transaction. Without autocommit the process observes its own supervisor
+    # mutations while independent control/signer readers continue to see stale
+    # state, violating the durable PR9 authority boundary.
     conn.row_factory = dict_row
     from aea.supervisor.state import PostgresSupervisorStore
 

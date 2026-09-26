@@ -1,0 +1,96 @@
+{
+  "run_id": "m2b-base-sepolia-e3-20260822T151455Z",
+  "result": "PASS",
+  "rail": "evm",
+  "network": "base-sepolia",
+  "chain_id": 84532,
+  "transaction_hash": "0xe66c35ea9bc02853ebd607715322f921759dbbf9e487ae3a15ffc688550d539b",
+  "block_number": 45820677,
+  "receipt_status": 1,
+  "confirmations_observed": 994,
+  "settlement_threshold_reached": true,
+  "source": "0x7fc8ACC21e601c488e6EE4eE39AD67d3ecA12a7e",
+  "destination_classification": "base-sepolia:approved:smoke-recipient",
+  "destination": "0x0803b4Fd73D6a4d67857c7bc379E8011991Ab2b9",
+  "token_contract": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+  "token_decimals": 6,
+  "function_selector": "0xa9059cbb",
+  "amount": "0.010000",
+  "amount_base_units": 10000,
+  "nonce": 0,
+  "gas_used": 62147,
+  "effective_gas_price_wei": 6439894,
+  "execution_fee_wei": 400220092418,
+  "l1_data_fee_wei": 5981688050,
+  "total_network_fee_wei": 406201780468,
+  "total_network_fee_eth": "0.000000406201780468",
+  "transfer_log": {
+    "verified": true,
+    "count": 1,
+    "from": "0x7fc8ACC21e601c488e6EE4eE39AD67d3ecA12a7e",
+    "to": "0x0803b4Fd73D6a4d67857c7bc379E8011991Ab2b9",
+    "value_base_units": 10000
+  },
+  "balances": {
+    "source_test_usdc_before": "1.000000",
+    "source_test_usdc_after": "0.990000",
+    "destination_test_usdc_before": "0.000000",
+    "destination_test_usdc_after": "0.010000",
+    "source_eth_before": "0.000100000000000000",
+    "source_eth_after": "0.000099593798219532"
+  },
+  "durable_identity": {
+    "payment_request_id": "4a75ff5b-2924-4e36-917e-0492cc1ec5f9",
+    "idempotency_key": "phase-e3-base-sepolia-smoke-payment-v1",
+    "job_id": "624cdfb3-a0c1-492d-9a94-2d2fb34ee06c",
+    "payment_rows": 1,
+    "principal_cost_rows": 1,
+    "network_fee_rows": 1,
+    "chain_evidence_rows": 1,
+    "revenue_rows": 0
+  },
+  "reconciliation": {
+    "test_usdc_delta": "0.000000",
+    "eth_delta": "0.000000000000000000",
+    "result": "OK"
+  },
+  "idempotency_recovery": {
+    "response_loss_recovered_from_persisted_signed_transaction": true,
+    "same_request_replay_code": "IDEMPOTENT_REPLAY",
+    "latest_nonce": 1,
+    "pending_nonce": 1,
+    "successful_transaction_count": 1,
+    "matching_transfer_log_count": 1,
+    "duplicate_transfer_count": 0
+  },
+  "policy": {
+    "version": "policy/m2b-base-sepolia-v1",
+    "hash": "5aed03122e1d6e51cd051327c5d197c7f4f5286f7674b3709037e07473de4c5e",
+    "daily_spend_usdc_after": "0.010000",
+    "capital_at_risk_usdc_after": "0"
+  },
+  "supervisor_after": {
+    "frozen": false,
+    "signer_enabled": true,
+    "loop_enabled": true,
+    "readable": true
+  },
+  "safe_shutdown": {
+    "base_sepolia_spend_gate": "disabled_and_archived",
+    "base_mainnet_spend_gate": "absent",
+    "signed_recovery_state": "removed_after_finalization",
+    "phase_e_services": "stopped",
+    "mainnet_transaction_executed": false
+  },
+  "tests": {
+    "focused_phase_e_evm": "PASS",
+    "full_pytest": "375 passed",
+    "gate_a_regression": "PASS",
+    "gate_b_accepted_evidence_regression": "PASS",
+    "pr13_regression": "PASS",
+    "pr14_regression": "PASS",
+    "pr15_evidence_integrity": "PASS",
+    "git_diff_check": "PASS"
+  },
+  "secrets_included": false
+}

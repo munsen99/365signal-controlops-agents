@@ -16,7 +16,7 @@ from typing import Any
 from pydantic import ValidationError
 
 from aea.policy.reasons import HttpCode
-from aea.types import format_amount
+from aea.types import format_amount, format_asset_amount
 from aea.wallet.mock import MockWallet, new_tx_id
 from aea.wallet.protocol import (
     WALLET_HOST,
@@ -352,7 +352,7 @@ class SolanaReadService:
                 await _send_json(send, status=503, payload={"ok": False, "code": HttpCode.NETWORK_FAILURE})
                 return
             await _send_json(send, status=200, payload={"ok": True, "code": HttpCode.OK,
-                "balances": {k: format_amount(v) for k, v in balances.items()},
+                "balances": {k: format_asset_amount(v, k) for k, v in balances.items()},
                 "public_wallet": self._config.public_wallet, "network": self._config.network})
             return
         if method == "GET" and path.startswith("/v1/wallet/tx/"):

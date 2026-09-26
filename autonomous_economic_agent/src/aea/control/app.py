@@ -182,6 +182,7 @@ class ControlService:
         live_gate: Any | None = None,
         configured_solana: dict[str, Any] | None = None,
         configured_evm: dict[str, Any] | None = None,
+        discover_contexts: bool = False,
         engagement: EconomicEngagementService | None = None,
         web_research: ReadOnlyWebService | None = None,
         auto_commit: bool = True,
@@ -210,6 +211,7 @@ class ControlService:
         self._live_gate = live_gate
         self._configured_solana = configured_solana or {}
         self._configured_evm = configured_evm or {}
+        self._discover_contexts = discover_contexts
         self._engagement = engagement or EconomicEngagementService()
         self._web = web_research or ReadOnlyWebService()
         self._auto_commit = auto_commit
@@ -327,6 +329,7 @@ class ControlService:
             live_gate=self._live_gate,
             configured_solana=self._configured_solana,
             configured_evm=self._configured_evm,
+            discover_contexts=self._discover_contexts,
             secrets=self._secrets(),
         )
         status = collector.snapshot()
@@ -719,6 +722,7 @@ def create_app(
     live_gate: Any | None = None,
     configured_solana: dict[str, Any] | None = None,
     configured_evm: dict[str, Any] | None = None,
+    discover_contexts: bool = False,
     engagement: EconomicEngagementService | None = None,
     web_research: ReadOnlyWebService | None = None,
     auto_commit: bool = True,
@@ -747,6 +751,7 @@ def create_app(
         live_gate=live_gate,
         configured_solana=configured_solana,
         configured_evm=configured_evm,
+        discover_contexts=discover_contexts,
         engagement=engagement,
         web_research=web_research,
         auto_commit=auto_commit,
@@ -911,16 +916,26 @@ def create_app_from_env() -> ControlService:
         operator_intent=os.environ.get("AEA_LIVE_WALLET"),
     )
 
+    from aea.observability.identity import evm_owner_wallet, solana_owner_wallet
+
+    sol_mint = os.environ.get("AEA_SOLANA_TOKEN_MINT")
     configured_solana = {
         "network": os.environ.get("AEA_SOLANA_NETWORK"),
-        "public_wallet": os.environ.get("AEA_SOLANA_PUBLIC_WALLET"),
-        "token_mint": os.environ.get("AEA_SOLANA_TOKEN_MINT"),
+        "public_wallet": solana_owner_wallet(
+            public_wallet=os.environ.get("AEA_SOLANA_PUBLIC_WALLET"),
+            token_mint=sol_mint,
+        ),
+        "token_mint": sol_mint,
     }
     configured_solana = {k: v for k, v in configured_solana.items() if v}
+    evm_token = os.environ.get("AEA_EVM_USDC_CONTRACT")
     configured_evm = {
         "network": os.environ.get("AEA_EVM_NETWORK"),
-        "public_wallet": os.environ.get("AEA_EVM_PUBLIC_WALLET"),
-        "token_contract": os.environ.get("AEA_EVM_USDC_CONTRACT"),
+        "public_wallet": evm_owner_wallet(
+            public_wallet=os.environ.get("AEA_EVM_PUBLIC_WALLET"),
+            token_contract=evm_token,
+        ),
+        "token_contract": evm_token,
         "chain_id": os.environ.get("AEA_EVM_CHAIN_ID"),
     }
     if configured_evm.get("chain_id"):
@@ -949,6 +964,7 @@ def create_app_from_env() -> ControlService:
         live_gate=live_gate,
         configured_solana=configured_solana,
         configured_evm=configured_evm,
+        discover_contexts=True,
         engagement=EconomicEngagementService(transports=default_bounded_transports()),
     )
 

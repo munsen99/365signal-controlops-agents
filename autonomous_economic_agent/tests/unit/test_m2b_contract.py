@@ -51,3 +51,22 @@ def test_pr15_research_artifact_remains_present_and_unmodified_by_runtime() -> N
     assert research.is_file()
     text = research.read_text(encoding="utf-8")
     assert "MARKETPLACE SELECTION: BLOCKED" in text
+
+
+def test_control_preserves_evm_native_fee_reserve_balance() -> None:
+    from decimal import Decimal
+
+    from aea.control.app import _normalise_wallet_balances
+
+    assert _normalise_wallet_balances({"balances": {
+        "USDC": "1.000000", "ETH": "0.000100", "metadata": "ignored",
+    }}) == {"USDC": Decimal("1.000000"), "ETH": Decimal("0.000100")}
+
+
+def test_eth_asset_format_preserves_wei_precision() -> None:
+    from decimal import Decimal
+
+    from aea.types import format_asset_amount
+
+    assert format_asset_amount(Decimal("0.000099593798219532"), "ETH") == "0.000099593798219532"
+    assert format_asset_amount(Decimal("0.000000406201780468"), "ETH") == "0.000000406201780468"

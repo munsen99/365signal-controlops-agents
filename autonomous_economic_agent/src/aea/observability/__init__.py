@@ -1,5 +1,6 @@
 """Read-only AEA observability snapshot. No sign, debit, or supervisor mutation."""
 
+from aea.observability.identity import solana_owner_wallet
 from aea.observability.sanitize import (
     RECENT_EVENTS_LIMIT,
     filter_secrets,
@@ -17,4 +18,5 @@ __all__ = [
     "filter_secrets",
     "safe_display_text",
     "serialize_status",
+    "solana_owner_wallet",
 ]

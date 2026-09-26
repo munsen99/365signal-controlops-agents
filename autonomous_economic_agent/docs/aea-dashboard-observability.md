@@ -31,39 +31,30 @@ Control still must not hold `AEA_SIGNER_TOKEN`, HMAC, or wallet debit.
 - Methods other than GET return `405`.
 - No `/observability/sign`, pay, unfreeze, or enable routes exist.
 
-Stable DTO:
+Stable DTO includes `observation`, `contexts`, and per-field freshness
+(`current` / `stale` / `unknown`). Isolated ledgers are never summed.
 
-```json
-{
-  "ok": true,
-  "code": "OK",
-  "generated_at": "...",
-  "agent": {},
-  "economics": {},
-  "supervisor": {},
-  "policy": {},
-  "reconciliation": {},
-  "rails": [],
-  "current_job": {},
-  "recent_events": [],
-  "warnings": []
-}
-```
-
-Facts come from the durable ledger and existing trusted services. Opening
-capital is a capital field and is never copied into verified revenue. SOL and
-ETH reserves are separate native balances; there is no fiat conversion.
+Facts come from durable ledger views and live supervisor/wallet reads.
+Opening capital is a capital field and is never copied into verified revenue.
+SOL and ETH reserves are separate native balances; there is no fiat conversion.
+A Solana token mint (including wrapped-SOL `So1111…112`) is never displayed
+as the owner wallet.
 
 ## Information displayed
 
-- Agent state, runtime health, last update, current/last job, marketplace
-- Opening capital, available USDC, verified revenue, costs, P&L, daily spend,
-  capital at risk, SOL fee reserve, ETH gas reserve
-- Frozen / signer enabled / loop enabled / live-spend gate / policy version+hash
-- Solana rail and EVM rail independently (one unavailable rail does not hide
-  the other)
-- Latest job (marketplace text is untrusted and escaped)
-- Bounded recent audit events (max 20)
+- Degraded observation banner when supervisor, wallet, reconciliation, or
+  policy is not currently authoritative
+- Agent state; top-level available USDC only when a live wallet read is
+  current and labelled by context (otherwise `—`)
+- Separate contexts: M1 default (`controlops`), Phase-C Solana
+  (`controlops_phase_c`), Phase-E EVM (`controlops_phase_e`)
+- Supervisor flags with freshness: if HTTP is down they are stale/unknown,
+  never current yes/no
+- Reconciliation: `healthy` only after a live wallet read with zero delta;
+  persisted zero delta with an unavailable wallet is `stale`
+- Solana and EVM rails: configured identity, current vs last-known balances,
+  last settlement
+- Merged recent activity (max 20) tagged with context, rail, and network
 
 ## Refresh
 

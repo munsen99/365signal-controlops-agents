@@ -124,14 +124,18 @@ class PaymentOrchestrator:
                 "reason_code": pending.get("reason_code"),
                 "transaction_reference": None,
             }
-        if pending.get("transaction_reference"):
-            return self._complete_settled(
+        if (pending.get("transaction_reference")
+                and (self._policy.document.wallet_phase != "E"
+                     or self._ledger.has_chain_evidence(request_id))):
+            settled = self._complete_settled(
                 req,
                 request_id=request_id,
                 tx_id=str(pending["transaction_reference"]),
                 correlation_id=correlation_id,
                 replay=True,
             )
+            if settled.get("code") != HttpCode.WALLET_LEDGER_MISMATCH:
+                return settled
 
         dest = self._policy.classify(req.destination)
         try:
@@ -143,7 +147,9 @@ class PaymentOrchestrator:
                 "request_id": str(request_id),
                 "transaction_reference": None,
             }
-        daily = self._ledger.daily_spend_usdc()
+        daily = self._ledger.daily_spend_usdc(
+            excluding_request_id=request_id if pending.get("transaction_reference") else None
+        )
         try:
             exposure = self._ledger.outstanding_exposure_usdc(excluding_request_id=request_id)
         except LedgerError:
@@ -311,7 +317,7 @@ class PaymentOrchestrator:
                 )
             )
             evidence = chain_evidence or {}
-            evm_policy = self._loaded.document.evm
+            evm_policy = self._policy.document.evm
             if evm_policy is None:
                 raise LedgerError(HttpCode.VALIDATION_ERROR, "EVM evidence requires EVM policy")
             self._ledger.record_chain_evidence(ChainEvidenceCreate.model_validate({
@@ -320,6 +326,7 @@ class PaymentOrchestrator:
                 "transaction_hash": tx_id, "block_number": evidence.get("block_number"),
                 "token_contract": evidence.get("token_contract"), "gas_used": evidence.get("gas_used"),
                 "effective_gas_price_wei": evidence.get("effective_gas_price_wei"), "fee_wei": fee_wei,
+                "l1_fee_wei": evidence.get("l1_fee_wei", 0),
                 "fee_usdc_snapshot": evm_policy.native_fee_usdc_snapshot,
                 "fee_rate_source": evm_policy.native_fee_rate_source,
                 "fee_rate_observed_at": evm_policy.native_fee_rate_observed_at,

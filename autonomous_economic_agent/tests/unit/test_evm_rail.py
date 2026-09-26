@@ -15,6 +15,7 @@ from aea.signer.backend import ApprovedRequest, SignRequest, canonical_approved_
 from aea.signer.evm import EvmSigner, load_protected_evm_key
 from aea.wallet.evm import (
     BASE_MAINNET_USDC,
+    BASE_SEPOLIA_USDC,
     EvmConfig,
     EvmRailError,
     EvmTxEvidence,
@@ -49,6 +50,21 @@ def test_base_identity_and_canonical_usdc_are_pinned() -> None:
         rpc_url="https://rpc.example.invalid/v1/project?api_key=secret")
     assert valid.live_spend is False
     assert "api_key" not in valid.sanitized_rpc_endpoint() and "secret" not in valid.sanitized_rpc_endpoint()
+
+
+def test_base_public_network_spend_requires_explicit_gate() -> None:
+    account = Account.create()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        method = __import__("json").loads(request.content)["method"]
+        result = {"eth_chainId": hex(84532), "eth_getCode": "0x6000",
+                  "eth_call": "0x" + (6).to_bytes(32, "big").hex()}[method]
+        return httpx.Response(200, json={"jsonrpc": "2.0", "id": 1, "result": result})
+
+    config = _config(account, BASE_SEPOLIA_USDC, network="base-sepolia", chain_id=84532)
+    import asyncio
+    with pytest.raises(EvmRailError, match="LIVE_SPEND_DISABLED"):
+        asyncio.run(EvmWallet(transport=httpx.MockTransport(handler)).validate(config, for_spend=True))
 
 
 def test_rpc_chain_decimals_and_balance_validation() -> None:
@@ -234,6 +250,21 @@ def test_reverted_receipt_is_not_settlement() -> None:
     assert evidence.state == "reverted" and not evidence.transfer_verified
 
 
+def test_base_receipt_fee_includes_l1_data_fee() -> None:
+    account, token = Account.create(), to_checksum_address("0x" + "22" * 20)
+    config, tx_hash = _config(account, token), "0x" + "97" * 32
+    receipt = {"blockNumber": "0x5", "gasUsed": "0x5208", "effectiveGasPrice": "0x2",
+               "l1Fee": "0x7b", "status": "0x1", "logs": []}
+    def handler(request: httpx.Request) -> httpx.Response:
+        method = __import__("json").loads(request.content)["method"]
+        result = receipt if method == "eth_getTransactionReceipt" else "0x5"
+        return httpx.Response(200, json={"jsonrpc": "2.0", "id": 1, "result": result})
+    import asyncio
+    evidence = asyncio.run(EvmWallet(transport=httpx.MockTransport(handler)).lookup(config, tx_hash))
+    assert evidence.l1_fee_wei == 123
+    assert evidence.fee_wei == 21_000 * 2 + 123
+
+
 def test_missing_transfer_log_rejected_even_with_success_receipt() -> None:
     account, destination = Account.create(), Account.create().address
     token, tx_hash = to_checksum_address("0x" + "22" * 20), "0x" + "98" * 32
@@ -263,3 +294,17 @@ def test_signer_disable_prevents_prepare(tmp_path: Path) -> None:
     import asyncio
     result = asyncio.run(signer.sign(_signed_request(_approved(config, "base:approved:test", destination))))
     assert not result.ok and result.code == "SIGNER_DISABLED" and rpc.prepared == 0
+
+
+def test_sepolia_signer_requires_operator_spend_gate(tmp_path: Path) -> None:
+    account, destination, rpc = Account.create(), Account.create().address, _SignerRpc()
+    config = _config(account, BASE_SEPOLIA_USDC, network="base-sepolia", chain_id=84532)
+    signer = EvmSigner(freeze_path=tmp_path / "FREEZE",
+        expected_policy_version="policy/evm-test", expected_policy_hash=POLICY_HASH,
+        hmac_key=HMAC_KEY, config=config, account=account, rpc=rpc,
+        approved_destinations={"base-sepolia:approved:test": destination},
+        live_spend_path=tmp_path / "CONFIRM_LIVE_USDC_TRANSFER", live_operator_intent="0")
+    import asyncio
+    result = asyncio.run(signer.sign(_signed_request(
+        _approved(config, "base-sepolia:approved:test", destination))))
+    assert not result.ok and result.code == "LIVE_SPEND_DISABLED" and rpc.prepared == 0

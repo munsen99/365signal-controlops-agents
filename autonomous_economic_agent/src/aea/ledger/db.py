@@ -84,10 +84,25 @@ def connect_kwargs(*, role: str = DEFAULT_APP_USER) -> dict[str, object]:
     return kwargs
 
 
-def connect(*, role: str = DEFAULT_APP_USER) -> psycopg.Connection:
-    """Open a connection with search_path=economic."""
-    conn = psycopg.connect(**connect_kwargs(role=role))
+def connect(
+    *,
+    role: str = DEFAULT_APP_USER,
+    dbname: str | None = None,
+    readonly: bool = False,
+) -> psycopg.Connection:
+    """Open a connection with search_path=economic.
+
+    ``readonly=True`` starts a READ ONLY transaction so observability
+    connections cannot INSERT/UPDATE even as ``economic_app``.
+    """
+    kwargs = connect_kwargs(role=role)
+    if dbname:
+        kwargs["dbname"] = dbname
+    conn = psycopg.connect(**kwargs)
     conn.execute("SET search_path TO economic")
+    if readonly:
+        conn.execute("ROLLBACK")
+        conn.execute("BEGIN READ ONLY")
     return conn
 
 

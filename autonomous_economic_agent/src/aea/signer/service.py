@@ -69,7 +69,9 @@ def _scrub(payload: dict[str, Any], *, extra_secrets: tuple[str, ...] = ()) -> d
     out: dict[str, Any] = {}
     for key, value in payload.items():
         low = key.lower()
-        if any(part in low for part in ("token", "secret", "password", "private_key", "seed", "mnemonic", "hmac")):
+        if low != "token_contract" and any(part in low for part in (
+            "token", "secret", "password", "private_key", "seed", "mnemonic", "hmac"
+        )):
             continue
         if isinstance(value, str) and value in extra_secrets:
             continue
@@ -606,8 +608,10 @@ def create_app_from_env() -> SignerService:
         signer = EvmSigner(freeze_path=Path(freeze_raw), expected_policy_version=policy_version,
             expected_policy_hash=policy_hash, hmac_key=hmac_key, config=config, account=account, rpc=rpc,
             approved_destinations={str(required["destination_id"]): str(required["destination_address"])},
-            live_spend_path=os.environ.get("AEA_LIVE_SPEND_FILE") if config.network == "base-mainnet" else None,
-            live_operator_intent=os.environ.get("AEA_LIVE_WALLET") if config.network == "base-mainnet" else None,
+            live_spend_path=os.environ.get("AEA_LIVE_SPEND_FILE")
+                if config.network in {"base-mainnet", "base-sepolia"} else None,
+            live_operator_intent=os.environ.get("AEA_LIVE_WALLET")
+                if config.network in {"base-mainnet", "base-sepolia"} else None,
             state_dir=str(required["state_dir"]))
     else:
         raise ValueError("wallet phase must be A, B, C, or E")

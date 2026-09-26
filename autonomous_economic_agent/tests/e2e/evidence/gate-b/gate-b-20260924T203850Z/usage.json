@@ -1,0 +1,17 @@
+{
+  "estimated_cost_usd": 0.0,
+  "cost_status": "unknown",
+  "cost_source": "none",
+  "input_tokens": 231655,
+  "output_tokens": 6870,
+  "cache_read_tokens": 0,
+  "cache_write_tokens": 0,
+  "reasoning_tokens": 2642,
+  "total_tokens": 238525,
+  "api_calls": 17,
+  "model": "lmstudio-community/qwen3.6-35b-a3b",
+  "provider": "lmstudio",
+  "session_id": "20260924_203852_53e470",
+  "completed": true,
+  "failed": false
+}

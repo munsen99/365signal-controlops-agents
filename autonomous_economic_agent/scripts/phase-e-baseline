@@ -1,0 +1,226 @@
+#!/usr/bin/env python3
+"""Operator-only Phase-E opening baseline for an isolated EVM database."""
+from __future__ import annotations
+
+import argparse
+import asyncio
+import json
+import os
+import stat
+from decimal import Decimal
+from pathlib import Path
+
+import psycopg
+from psycopg import sql
+from psycopg.types.json import Jsonb
+
+from aea.config import load_policy
+from aea.hashing import canonical_json_hash, sha256_hex
+from aea.types import format_amount
+from aea.wallet.evm import EvmConfig, EvmWallet
+
+CONFIRM = "CONFIRM_PHASE_E_BASELINE"
+TARGET_DB = "controlops_phase_e"
+
+
+def require_operator_preconditions(*, confirmation: str, target: str,
+                                   live_intent: str | None, gate: Path | None) -> None:
+    if confirmation != CONFIRM:
+        raise SystemExit(f"exact confirmation {CONFIRM} is required")
+    if target != TARGET_DB or target in {"controlops", "controlops_phase_c"}:
+        raise SystemExit("Phase-E baseline requires isolated database controlops_phase_e")
+    if live_intent == "1":
+        raise SystemExit("disable Phase-E spend intent before baseline")
+    if gate is not None and (gate.exists() or gate.is_symlink()):
+        raise SystemExit("spend confirmation gate must be absent during baseline")
+
+
+def _regular_file(path: Path, label: str) -> None:
+    try:
+        info = os.lstat(path)
+    except OSError as exc:
+        raise SystemExit(f"{label} is missing or unreadable") from exc
+    if stat.S_ISLNK(info.st_mode) or not stat.S_ISREG(info.st_mode):
+        raise SystemExit(f"{label} must be a regular non-symlink file")
+
+
+async def read_wallet(*, policy: object, rpc_url: str, public_wallet: str) -> tuple[EvmConfig, dict[str, Decimal]]:
+    evm = policy.document.evm
+    if policy.document.wallet_phase != "E" or evm is None:
+        raise SystemExit("baseline policy must be Phase E")
+    config = EvmConfig(
+        network=evm.network, chain_id=evm.chain_id, rpc_url=rpc_url,
+        public_wallet=public_wallet, token_contract=evm.usdc_contract,
+        token_decimals=evm.decimals, confirmations=evm.confirmations,
+        max_gas_limit=evm.max_gas_limit,
+        max_fee_per_gas_wei=evm.max_fee_per_gas_wei,
+        max_priority_fee_per_gas_wei=evm.max_priority_fee_per_gas_wei,
+        max_total_fee_wei=evm.max_total_fee_wei, live_spend=False,
+    )
+    wallet = EvmWallet()
+    await wallet.validate(config, for_spend=False)
+    return config, await wallet.balances(config)
+
+
+def _apply_schema(conn: psycopg.Connection, root: Path) -> None:
+    for name in ("013-economic-schema.sql", "014-economic-roles-and-grants.sql",
+                 "016-economic-multirail.sql", "017-economic-evm-precision.sql"):
+        conn.execute((root / "platform/postgres/init" / name).read_text(encoding="utf-8"), prepare=False)
+
+
+def _history_count(conn: psycopg.Connection) -> int:
+    return int(conn.execute("""
+        SELECT (SELECT count(*) FROM economic.jobs)
+             + (SELECT count(*) FROM economic.revenues)
+             + (SELECT count(*) FROM economic.economic_costs)
+             + (SELECT count(*) FROM economic.payment_requests)
+             + (SELECT count(*) FROM economic.opportunities)
+             + (SELECT count(*) FROM economic.decisions)
+             + (SELECT count(*) FROM economic.incidents)
+    """).fetchone()[0])
+
+
+def validate_existing_baseline(*, history: int,
+                               accounts: dict[str, tuple[Decimal, Decimal]],
+                               transfers: list[tuple[str, Decimal, str]],
+                               expected: dict[str, Decimal]) -> bool:
+    if history:
+        raise SystemExit("refusing to baseline a Phase-E database containing incompatible economic history")
+    if not accounts:
+        if transfers:
+            raise SystemExit("orphan Phase-E baseline transfer evidence")
+        return False
+    if accounts != {asset: (value, value) for asset, value in expected.items()}:
+        raise SystemExit("existing Phase-E opening baseline conflicts; refusing overwrite")
+    expected_transfers = sorted((asset, value,
+        "opening_capital" if asset == "USDC" else "fee_reserve")
+        for asset, value in expected.items() if value > 0)
+    if transfers != expected_transfers:
+        raise SystemExit("existing Phase-E baseline transfer evidence conflicts")
+    return True
+
+
+def baseline_payload(*, config: EvmConfig, usdc: Decimal, native: Decimal) -> dict[str, object]:
+    return {"classification": "operator_funded_opening_baseline",
+        "wallet_phase": "E", "rail": "evm", "network": config.network,
+        "chain_id": config.chain_id, "public_wallet": config.public_wallet,
+        "usdc_contract": config.token_contract, "usdc_decimals": config.token_decimals,
+        "native_asset": "ETH", "usdc_opening_capital": format_amount(usdc),
+        "eth_fee_reserve": format(native, "f"), "revenue_created": False,
+        "pnl_created": False, "historical_transactions_fabricated": False}
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("confirmation")
+    parser.add_argument("--policy", required=True, type=Path)
+    parser.add_argument("--destinations", required=True, type=Path)
+    parser.add_argument("--rpc-url-file", required=True, type=Path)
+    parser.add_argument("--public-wallet", required=True)
+    args = parser.parse_args()
+    target = os.environ.get("AEA_POSTGRES_DB", TARGET_DB)
+    gate_raw = os.environ.get("AEA_LIVE_SPEND_FILE")
+    require_operator_preconditions(confirmation=args.confirmation, target=target,
+        live_intent=os.environ.get("AEA_LIVE_WALLET"), gate=Path(gate_raw) if gate_raw else None)
+    for path, label in ((args.policy, "policy"), (args.destinations, "destinations"),
+                        (args.rpc_url_file, "RPC URL file")):
+        _regular_file(path, label)
+    policy = load_policy(policy_path=args.policy, destinations_path=args.destinations)
+    rpc_url = args.rpc_url_file.read_text(encoding="utf-8").rstrip("\n")
+    config, balances = asyncio.run(read_wallet(policy=policy, rpc_url=rpc_url,
+                                                public_wallet=args.public_wallet))
+    usdc, native = balances["USDC"], balances["ETH"]
+    root = Path(__file__).resolve().parents[2]
+    admin_file = Path(os.environ.get("CONTROL_OPS_POSTGRES_PASSWORD_FILE",
+        "/home/proteu5/.config/controlops/postgres/postgres_password"))
+    _regular_file(admin_file, "Postgres admin password file")
+    password = admin_file.read_text(encoding="utf-8").rstrip("\n")
+    common = {"host": os.environ.get("AEA_POSTGRES_HOST", "127.0.0.1"),
+              "port": int(os.environ.get("AEA_POSTGRES_PORT", "5432")),
+              "user": os.environ.get("AEA_POSTGRES_ADMIN_USER", "controlops_admin"),
+              "password": password}
+    admin = psycopg.connect(dbname="postgres", autocommit=True, **common)
+    exists = admin.execute("SELECT 1 FROM pg_database WHERE datname=%s", (target,)).fetchone()
+    if exists is None:
+        admin.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(target)))
+    admin.close()
+    conn = psycopg.connect(dbname=target, **common)
+    _apply_schema(conn, root)
+    expected = {"USDC": usdc, "ETH": native}
+    rows = conn.execute("SELECT asset, opening_balance, current_balance FROM economic.agent_accounts").fetchall()
+    transfer_rows = conn.execute("""
+        SELECT asset, amount, classification FROM economic.transfers ORDER BY asset
+    """).fetchall()
+    replay = validate_existing_baseline(history=_history_count(conn),
+        accounts={row[0]: (Decimal(row[1]), Decimal(row[2])) for row in rows},
+        transfers=[(r[0], Decimal(r[1]), r[2]) for r in transfer_rows], expected=expected)
+    if not replay:
+        conn.execute("""
+            INSERT INTO economic.agent_accounts
+                (agent_id, asset, opening_balance, current_balance)
+            VALUES ('economic-agent', 'USDC', %s, %s),
+                   ('economic-agent', 'ETH', %s, %s)
+        """, (usdc, usdc, native, native))
+        conn.execute("""
+            INSERT INTO economic.transfers (account_id, direction, amount, asset, classification)
+            SELECT account_id, 'in', opening_balance, asset,
+                   CASE WHEN asset='USDC' THEN 'opening_capital' ELSE 'fee_reserve' END
+              FROM economic.agent_accounts
+             WHERE agent_id='economic-agent' AND opening_balance > 0
+        """)
+    conn.execute("UPDATE economic.policy_versions SET is_current=false")
+    conn.execute("""
+        INSERT INTO economic.policy_versions
+            (policy_version, policy_document, policy_hash, effective_from, created_by, is_current)
+        VALUES (%s, %s, %s, now(), 'operator-phase-e-baseline', true)
+        ON CONFLICT (policy_version) DO UPDATE SET
+            policy_document=excluded.policy_document, policy_hash=excluded.policy_hash,
+            effective_from=excluded.effective_from, created_by=excluded.created_by, is_current=true
+    """, (policy.document.policy_version, Jsonb(policy.raw), policy.policy_hash))
+    constitution = root / "autonomous_economic_agent/constitution/SOUL.md"
+    conn.execute("""
+        INSERT INTO economic.constitution_versions
+            (constitution_version, constitution_hash, effective_from, created_by)
+        VALUES ('constitution/v0.1.0', %s, now(), 'operator-phase-e-baseline')
+        ON CONFLICT (constitution_version) DO NOTHING
+    """, (sha256_hex(constitution.read_bytes()),))
+    conn.execute("""
+        INSERT INTO economic.supervisor_state
+            (singleton, frozen, signer_enabled, loop_enabled, updated_by)
+        VALUES (true, false, false, false, 'operator-phase-e-baseline')
+        ON CONFLICT (singleton) DO NOTHING
+    """)
+    payload = baseline_payload(config=config, usdc=usdc, native=native)
+    if conn.execute("SELECT count(*) FROM economic.audit_events WHERE event_type='operator.phase_e_baseline'").fetchone()[0] == 0:
+        conn.execute("""
+            INSERT INTO economic.audit_events (agent_id, event_type, payload, payload_hash)
+            VALUES ('economic-agent', 'operator.phase_e_baseline', %s, %s)
+        """, (Jsonb(payload), canonical_json_hash(payload)))
+    conn.commit()
+    accounts = conn.execute("SELECT asset, opening_balance, current_balance FROM economic.agent_accounts ORDER BY asset").fetchall()
+    transfers = conn.execute("SELECT asset, amount, classification, transaction_reference FROM economic.transfers ORDER BY asset").fetchall()
+    recon = conn.execute("SELECT asset, delta FROM economic.v_balance_reconciliation ORDER BY asset").fetchall()
+    revenues = conn.execute("SELECT count(*) FROM economic.revenues").fetchone()[0]
+    daily = conn.execute("""SELECT COALESCE(SUM(amount),0) FROM economic.payment_requests
+        WHERE policy_decision='approved' AND transaction_reference IS NOT NULL AND asset='USDC'
+        AND requested_at >= (date_trunc('day',now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC')""").fetchone()[0]
+    car = conn.execute("SELECT approved_unsettled_outflow FROM economic.v_capital_at_risk").fetchone()[0]
+    supervisor = conn.execute("SELECT frozen,signer_enabled,loop_enabled FROM economic.supervisor_state WHERE singleton").fetchone()
+    conn.close()
+    wallet_delta = {"USDC": usdc - Decimal(dict((r[0], r[2]) for r in accounts)["USDC"]),
+                    "ETH": native - Decimal(dict((r[0], r[2]) for r in accounts)["ETH"])}
+    print(json.dumps({"result": "PASS", "replay": replay, "database": target,
+        "policy_version": policy.document.policy_version, "policy_hash": policy.policy_hash,
+        "chain": payload, "accounts": [{"asset": r[0], "opening": str(r[1]), "current": str(r[2])} for r in accounts],
+        "transfers": [{"asset": r[0], "amount": str(r[1]), "classification": r[2],
+                       "transaction_reference": r[3]} for r in transfers],
+        "revenue_rows": int(revenues), "daily_spend_usdc": str(daily),
+        "capital_at_risk_usdc": str(car),
+        "ledger_reconciliation": [{"asset": r[0], "delta": str(r[1])} for r in recon],
+        "wallet_ledger_delta": {k: str(v) for k, v in wallet_delta.items()},
+        "supervisor": {"frozen": supervisor[0], "signer_enabled": supervisor[1], "loop_enabled": supervisor[2]},
+        "spend_gate_enabled": False}, sort_keys=True))
+
+
+if __name__ == "__main__":
+    main()

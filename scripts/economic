@@ -27,6 +27,7 @@ Commands:
   doctor                FAIL if frozen, mismatched, or signer/control down
   recon                 print supervisor status (wallet/ledger mismatch is FAIL)
   init-m1               create missing scoped M1 secret files (operator only)
+  install-hermes-profile  install the isolated Hermes economic profile/plugin
   reset-m1 CONFIRM_RESET_M1  reset only simulated economic state
   hermes-cycle          run bounded Gate B Hermes session
   help
@@ -35,11 +36,63 @@ EOF
 
 key_now() { printf '%s-%s' "$1" "$(date +%s)"; }
 
+install_hermes_profile() {
+  local profile_host="/mnt/Storage/AI/Hermes/data/profiles/economic-agent"
+  local plugin_target="${profile_host}/plugins/economic-agent"
+  local model_token_source="${AEA_SECRETS}/tokens/model"
+
+  [[ -f "${model_token_source}" && ! -L "${model_token_source}" ]] || {
+    economic_error "missing or unsafe model token file"
+    return 1
+  }
+  install -d -m 0700 "${profile_host}" "${profile_host}/plugins"
+  chmod 0700 "${profile_host}" "${profile_host}/plugins"
+  install -m 0600 "${ECONOMIC_ROOT}/agents/economic-agent/runtime/config.yaml" "${profile_host}/config.yaml"
+  install -m 0600 "${ECONOMIC_ROOT}/agents/economic-agent/runtime/SOUL.md" "${profile_host}/SOUL.md"
+
+  # A real directory works in host-side Hermes tooling and in the container;
+  # the former /workspace symlink was container-only and invisible to host
+  # discovery. Refuse unexpected non-directory objects.
+  if [[ -L "${plugin_target}" ]]; then
+    unlink "${plugin_target}"
+  elif [[ -e "${plugin_target}" && ! -d "${plugin_target}" ]]; then
+    economic_error "refusing unsafe Hermes plugin target"
+    return 1
+  fi
+  install -d -m 0700 "${plugin_target}"
+  chmod 0700 "${plugin_target}"
+  install -m 0600 "${AEA_DIR}/hermes_plugin/plugin.yaml" "${plugin_target}/plugin.yaml"
+  install -m 0600 "${AEA_DIR}/hermes_plugin/__init__.py" "${plugin_target}/__init__.py"
+
+  # Keep the bearer in a profile-private file. The profile .env contains only
+  # its opaque path plus non-secret routing/toolset pins; no token value.
+  install -m 0600 "${model_token_source}" "${profile_host}/.aea-model-token"
+  local env_tmp
+  env_tmp="$(mktemp)"
+  printf '%s\n' \
+    'AEA_CONTROL_URL=http://127.0.0.1:18700' \
+    'AEA_MODEL_TOKEN_FILE=/opt/data/profiles/economic-agent/.aea-model-token' \
+    'HERMES_TUI_TOOLSETS=economic' > "${env_tmp}"
+  install -m 0600 "${env_tmp}" "${profile_host}/.env"
+  chmod 0600 \
+    "${profile_host}/config.yaml" \
+    "${profile_host}/SOUL.md" \
+    "${profile_host}/.aea-model-token" \
+    "${profile_host}/.env" \
+    "${plugin_target}/plugin.yaml" \
+    "${plugin_target}/__init__.py"
+  unlink "${env_tmp}"
+  echo "Hermes economic profile installed"
+}
+
 cmd="${1:-help}"
 shift || true
 reason="${1:-operator ${cmd}}"
 
 case "${cmd}" in
+  install-hermes-profile)
+    install_hermes_profile
+    ;;
   init-m1)
     install -d -m 0700 "${AEA_SECRETS}" "${AEA_SECRETS}/tokens" "${AEA_SECRETS}/freeze"
     for name in control model signer supervisor wallet_debit wallet_credit wallet_read marketplace signer_hmac; do
@@ -147,11 +200,7 @@ case "${cmd}" in
     echo "OK"
     ;;
   hermes-cycle)
-    profile_host="/mnt/Storage/AI/Hermes/data/profiles/economic-agent"
-    install -d -m 0700 "${profile_host}/plugins"
-    install -m 0600 "${ECONOMIC_ROOT}/agents/economic-agent/runtime/config.yaml" "${profile_host}/config.yaml"
-    install -m 0600 "${ECONOMIC_ROOT}/agents/economic-agent/runtime/SOUL.md" "${profile_host}/SOUL.md"
-    ln -sfn /workspace/autonomous_economic_agent/hermes_plugin "${profile_host}/plugins/economic-agent"
+    install_hermes_profile
     run_id="gate-b-$(date -u +%Y%m%dT%H%M%SZ)"
     out="${AEA_DIR}/tests/e2e/evidence/gate-b/${run_id}"
     mkdir -p "${out}"

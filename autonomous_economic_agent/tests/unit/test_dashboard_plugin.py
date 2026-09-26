@@ -110,6 +110,9 @@ def test_js_never_renders_html_or_calls_signer() -> None:
     assert "visibilitychange" in js
     assert "8000" in js
     assert "safeText" in js
+    assert "OBSERVATION DEGRADED" in js
+    assert "last-known" in js.lower() or "Last-known" in js
+    assert "context_id" in js
 
 
 def test_sanitize_js_strips_tags() -> None:

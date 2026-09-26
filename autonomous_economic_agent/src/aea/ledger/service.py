@@ -1260,7 +1260,7 @@ class LedgerService:
             r["asset"]: r
             for r in self._conn.execute(
                 """
-                SELECT asset, opening_balance, current_balance
+                SELECT asset, opening_balance, current_balance, updated_at
                   FROM agent_accounts
                  WHERE agent_id = %s
                 """,
@@ -1281,6 +1281,10 @@ class LedgerService:
         car = self._conn.execute("SELECT * FROM v_capital_at_risk").fetchone()
         daily = self.daily_spend_usdc()
         car_usdc = _dec(car["approved_unsettled_outflow"]) if car else Decimal("0")
+        updated = max(
+            (r["updated_at"] for r in accounts.values() if r.get("updated_at") is not None),
+            default=None,
+        )
         return {
             "opening_capital_usdc": format_amount(_dec(usdc["opening_balance"])) if usdc else "0.000000",
             "available_capital_usdc": format_amount(_dec(usdc["current_balance"])) if usdc else "0.000000",
@@ -1291,6 +1295,7 @@ class LedgerService:
             "capital_at_risk_usdc": format_amount(car_usdc),
             "fee_reserve_sol": format_amount(_dec(sol["current_balance"])) if sol else None,
             "fee_reserve_eth": format_asset_amount(_dec(eth["current_balance"]), "ETH") if eth else None,
+            "updated_at": updated.isoformat() if updated is not None else None,
         }
 
     def observability_reconciliation(self) -> dict[str, Any]:
@@ -1388,39 +1393,43 @@ class LedgerService:
         return out
 
     def last_settlements(self) -> dict[str, dict[str, str] | None]:
-        evm_row = self._conn.execute(
-            """
-            SELECT e.transaction_hash, e.network, e.rail, pr.policy_decision,
-                   pr.transaction_reference
-              FROM chain_transaction_evidence e
-              JOIN payment_requests pr ON pr.request_id = e.payment_request_id
-             ORDER BY e.created_at DESC
-             LIMIT 1
-            """
+        evm = None
+        has_chain = self._conn.execute(
+            "SELECT to_regclass('economic.chain_transaction_evidence') AS rel"
         ).fetchone()
+        if has_chain and has_chain.get("rel"):
+            evm_row = self._conn.execute(
+                """
+                SELECT e.transaction_hash, e.network, e.rail, e.created_at,
+                       pr.policy_decision, pr.transaction_reference
+                  FROM chain_transaction_evidence e
+                  JOIN payment_requests pr ON pr.request_id = e.payment_request_id
+                 ORDER BY e.created_at DESC
+                 LIMIT 1
+                """
+            ).fetchone()
+            if evm_row is not None:
+                evm = {
+                    "ref": str(evm_row["transaction_hash"]),
+                    "status": "confirmed" if evm_row["transaction_reference"] else str(evm_row["policy_decision"]),
+                    "as_of": evm_row["created_at"].isoformat() if evm_row.get("created_at") else None,
+                }
         sol_row = self._conn.execute(
             """
-            SELECT pr.transaction_reference, pr.policy_decision, pr.asset
+            SELECT pr.transaction_reference, pr.policy_decision, pr.asset,
+                   COALESCE(pr.approved_at, pr.requested_at) AS at
               FROM payment_requests pr
-              LEFT JOIN chain_transaction_evidence e
-                ON e.payment_request_id = pr.request_id
              WHERE pr.transaction_reference IS NOT NULL
-               AND e.evidence_id IS NULL
                AND pr.transaction_reference NOT LIKE '0x%%'
              ORDER BY COALESCE(pr.approved_at, pr.requested_at) DESC
              LIMIT 1
             """
         ).fetchone()
-        evm = None
-        if evm_row is not None:
-            evm = {
-                "ref": str(evm_row["transaction_hash"]),
-                "status": "confirmed" if evm_row["transaction_reference"] else str(evm_row["policy_decision"]),
-            }
         sol = None
         if sol_row is not None:
             sol = {
                 "ref": str(sol_row["transaction_reference"]),
                 "status": "settled" if sol_row["policy_decision"] == "approved" else str(sol_row["policy_decision"]),
+                "as_of": sol_row["at"].isoformat() if sol_row.get("at") else None,
             }
         return {"sol": sol, "evm": evm}

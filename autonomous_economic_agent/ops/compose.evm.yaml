@@ -3,6 +3,7 @@
 services:
   economic-control:
     environment:
+      AEA_POSTGRES_DB: ${AEA_POSTGRES_DB:-controlops_phase_e}
       AEA_POLICY_FILE: /secrets/policy.evm.yaml
       AEA_DESTINATIONS_FILE: /secrets/destinations.evm.yaml
     volumes:
@@ -11,6 +12,7 @@ services:
 
   economic-policy:
     environment:
+      AEA_POSTGRES_DB: ${AEA_POSTGRES_DB:-controlops_phase_e}
       AEA_POLICY_FILE: /secrets/policy.evm.yaml
       AEA_DESTINATIONS_FILE: /secrets/destinations.evm.yaml
       AEA_EVM_NETWORK: ${AEA_EVM_NETWORK:-base-mainnet}
@@ -23,6 +25,7 @@ services:
       - ${AEA_SECRETS:?protected secrets directory required}/destinations.evm.yaml:/secrets/destinations.evm.yaml:ro
 
   economic-signer:
+    user: ${AEA_SIGNER_UID:?protected signer UID required}:${AEA_SIGNER_GID:?protected signer GID required}
     build:
       context: ..
       dockerfile: ops/Dockerfile.economic
@@ -30,7 +33,8 @@ services:
     environment:
       AEA_WALLET_PHASE: E
       AEA_LIVE_WALLET: ${AEA_LIVE_WALLET:-0}
-      AEA_LIVE_SPEND_FILE: /live/CONFIRM_LIVE_USDC_TRANSFER
+      AEA_LIVE_SPEND_FILE: /live/${AEA_EVM_SPEND_GATE_NAME:-CONFIRM_LIVE_USDC_TRANSFER}
+      AEA_POLICY_VERSION: ${AEA_POLICY_VERSION:?EVM policy version required}
       AEA_POLICY_HASH: ${AEA_POLICY_HASH:?EVM policy hash required}
       AEA_EVM_NETWORK: ${AEA_EVM_NETWORK:-base-mainnet}
       AEA_EVM_CHAIN_ID: ${AEA_EVM_CHAIN_ID:-8453}
@@ -64,6 +68,7 @@ services:
 
   economic-supervisor:
     environment:
+      AEA_POSTGRES_DB: ${AEA_POSTGRES_DB:-controlops_phase_e}
       AEA_POLICY_FILE: /secrets/policy.evm.yaml
     volumes:
       - ${AEA_SECRETS:?protected secrets directory required}/policy.evm.yaml:/secrets/policy.evm.yaml:ro

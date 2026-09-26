@@ -39,6 +39,12 @@
   word-break: break-all;
 }
 
+.aea-kpi .hint {
+  font-size: 0.68rem;
+  opacity: 0.65;
+  margin-top: 0.2rem;
+}
+
 .aea-grid {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
@@ -81,17 +87,20 @@
 }
 
 .aea-banner {
-  padding: 0.65rem 0.85rem;
+  padding: 0.75rem 0.9rem;
   border-radius: 0.5rem;
-  border: 1px solid transparent;
-  font-size: 0.85rem;
+  border: 1px solid color-mix(in srgb, #c45c26 70%, var(--border, #333));
+  background: color-mix(in srgb, #c45c26 18%, transparent);
+  font-size: 0.88rem;
+  font-weight: 600;
 }
 
 .aea-state-frozen,
 .aea-state-degraded,
 .aea-state-mismatch,
 .aea-state-unknown,
-.aea-state-offline {
+.aea-state-offline,
+.aea-state-stale {
   border-color: color-mix(in srgb, #c45c26 70%, var(--border, #333));
   background: color-mix(in srgb, #c45c26 18%, transparent);
 }

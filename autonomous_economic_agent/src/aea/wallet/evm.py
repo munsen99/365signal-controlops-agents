@@ -160,6 +160,7 @@ class EvmTxEvidence(AeaBaseModel):
     confirmations: int = 0
     gas_used: int | None = None
     effective_gas_price_wei: int | None = None
+    l1_fee_wei: int = Field(default=0, ge=0)
     fee_wei: int | None = None
     transfer_verified: bool = False
     token_contract: str | None = None
@@ -209,7 +210,7 @@ class EvmWallet:
         raw_decimals = await self._rpc(config, "eth_call", [{"to": config.token_contract, "data": DECIMALS_SELECTOR}, "latest"])
         if int(raw_decimals, 16) != config.token_decimals:
             raise EvmRailError("TOKEN_DECIMALS_MISMATCH")
-        if for_spend and not config.live_spend and config.network == "base-mainnet":
+        if for_spend and not config.live_spend and config.network in {"base-mainnet", "base-sepolia"}:
             raise EvmRailError("LIVE_SPEND_DISABLED")
 
     async def balances(self, config: EvmConfig) -> dict[str, Decimal]:
@@ -273,11 +274,13 @@ class EvmWallet:
         confirmations = max(0, latest - block_number + 1)
         gas_used = int(receipt["gasUsed"], 16)
         gas_price = int(receipt.get("effectiveGasPrice", "0x0"), 16)
+        l1_fee = int(receipt.get("l1Fee", "0x0"), 16)
         ok = int(receipt["status"], 16) == 1
         state: EvmState = "reverted" if not ok else ("accepted" if confirmations >= config.confirmations else "confirmed")
         return EvmTxEvidence(transaction_hash=transaction_hash, state=state, network=config.network,
                              chain_id=config.chain_id, block_number=block_number, confirmations=confirmations,
-                             gas_used=gas_used, effective_gas_price_wei=gas_price, fee_wei=gas_used * gas_price,
+                             gas_used=gas_used, effective_gas_price_wei=gas_price, l1_fee_wei=l1_fee,
+                             fee_wei=gas_used * gas_price + l1_fee,
                              error=None if ok else "transaction reverted", observed_at=now)
 
     async def wait_for_settlement(self, config: EvmConfig, transaction_hash: str) -> EvmTxEvidence:

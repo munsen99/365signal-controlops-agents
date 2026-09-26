@@ -172,6 +172,7 @@ class SignResult(AeaBaseModel):
     fee_wei: int | None = Field(default=None, ge=0)
     gas_used: int | None = Field(default=None, ge=0)
     effective_gas_price_wei: int | None = Field(default=None, ge=0)
+    l1_fee_wei: int | None = Field(default=None, ge=0)
     rail: Literal["evm"] | None = None
     network: str | None = None
     chain_id: int | None = Field(default=None, gt=0)
