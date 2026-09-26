@@ -22,7 +22,7 @@ checks. PR2 must not import PR1 private functions or reproduce its address table
 | D5 | [Snapshot and provenance](03-snapshot-and-extraction.md) | Content-addressed raw bytes plus atomic retrieval record | APPROVED |
 | D6 | [Result and failure contract](04-result-and-failures.md) | Closed immutable result types and stable fail-closed codes | APPROVED |
 | D7 | [Tests and acceptance](05-tests-and-acceptance.md) | No live Internet; scripted transports and connection-pin tests | APPROVED |
-| D8 | [Future file boundary](06-proposed-file-change-set.md) | Two runtime modules, one test module, fixed fixtures and scoped docs | APPROVED |
+| D8 | [Future file boundary](06-proposed-file-change-set.md) | Two runtime modules, one test module, fixed fixtures and scoped docs; architecture invariants unchanged | APPROVED AS AMENDED |
 
 ## Security posture
 
@@ -49,6 +49,8 @@ not verified evidence or approved knowledge.
 D1-D8, including the amended D3 network-acquisition deadline, were approved by
 the human reviewer on 2026-09-26. The approval is recorded in
 [pr2-design-2026-09-26.md](../approvals/pr2-design-2026-09-26.md).
+D8 was subsequently amended to leave the PR1-pinned architecture invariant file
+unchanged; see [the amendment](../approvals/pr2-d8-amendment-2026-09-26.md).
 No architectural question is left for implementation to decide. Design approval
 does not authorise implementation.
 
@@ -60,7 +62,7 @@ D4 content/extraction: APPROVED
 D5 snapshot/provenance: APPROVED
 D6 failures/results: APPROVED
 D7 tests/acceptance: APPROVED
-D8 file boundary: APPROVED
+D8 file boundary: APPROVED AS AMENDED
 Reviewer / date: human reviewer / 2026-09-26
 Implementation authorisation: NOT GIVEN
 ```

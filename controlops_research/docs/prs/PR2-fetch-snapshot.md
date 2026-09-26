@@ -18,11 +18,15 @@ Other PR capabilities; Writer Agent, publication workflow and trusted RAG ingest
 
 ## Files expected to change
 
-To be specified in the approved implementation design; this placeholder does not authorise implementation.
+The exact boundary is recorded in the
+[approved implementation design](PR2-implementation-design/06-proposed-file-change-set.md).
 
 ## Architecture / design
 
-Introduce controlled public HTTP retrieval. Store/source raw bytes, SHA-256 and extracted visible text. Still no model reasoning. Detailed implementation remains subject to review.
+The [approved design](PR2-implementation-design/README.md) defines the PR1
+authority gate, DNS/connection pinning, bounded HTTPS behavior, raw snapshot and
+extraction contracts, deterministic failures, tests and file boundary. D1-D8
+were approved on 2026-09-26; D3 was approved as amended.
 
 ## Security boundaries
 
@@ -30,7 +34,8 @@ Preserve all [architecture invariants](../architecture-invariants.md). Research 
 
 ## Tests
 
-Define capability-specific checks in the approved implementation design.
+The approved D7 suite uses deterministic local resolver/transport/TLS/response
+seams and fixtures. It requires no live public Internet.
 
 ## Acceptance criteria
 
@@ -54,21 +59,24 @@ Reviewed implementation and acceptance evidence for this PR. This document alone
 
 ## Implementation result
 
-Status: NOT STARTED
+Status: PR2 IMPLEMENTED AND TESTED — PENDING HUMAN REVIEW
 Commit: N/A
-Completed: N/A
+Completed: 2026-09-26
 
 ### Test evidence
 
-Not yet implemented.
+Python 3.14: 768 passed. Python 3.13: 768 passed. No live public retrieval was
+used. See [the implementation report](reports/pr2-implementation-2026-09-26.md).
 
 ### Deviations from design
 
-None recorded.
+NONE. D8 was amended with explicit human approval to preserve the PR1-pinned
+architecture document.
 
 ### Known issues
 
-None recorded.
+No acceptance-blocking issue is known. Production network behavior is exercised
+through deterministic seams; tests do not contact the live public Internet.
 
 ### Reviewer decision
 

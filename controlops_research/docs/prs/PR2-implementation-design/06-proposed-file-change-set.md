@@ -1,7 +1,7 @@
 # 06 — Exact proposed future file-change set
 
-Decision D8: **APPROVED** on 2026-09-26. This list is the complete implementation
-boundary.
+Decision D8: **APPROVED AS AMENDED** on 2026-09-26. This list is the complete
+implementation boundary.
 None of these implementation changes is made by this design task.
 
 ## Files to create during a separately authorised implementation
@@ -22,7 +22,7 @@ None of these implementation changes is made by this design task.
 | File | Purpose |
 | --- | --- |
 | `README.md` | Describe the implemented bounded acquisition capability and local snapshot boundary |
-| `docs/architecture-invariants.md` | Record PR2 network authority, pinning, snapshot and derived-data invariants |
+| `docs/architecture-invariants.md` | **Intentionally unchanged by approved amendment:** PR1 pins its exact bytes; PR2 invariants remain in the approved PR2 design/specification |
 | `docs/prs/README.md` | Update PR2 status only after its actual review state is known |
 | `docs/prs/PR2-fetch-snapshot.md` | Link approved design, implementation record and final acceptance state |
 | `tests/test_architecture_boundaries.py` | Extend static dependency/configuration checks for the new network module without weakening PR0/PR1 guards |

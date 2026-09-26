@@ -1,0 +1,8 @@
+{
+  "fixtures": {
+    "empty.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "page-visible.txt": "abb04f55e7c0a0fc0663e08c060346374c1e66727f9ba83b2bf766b15f0abe44",
+    "page.html": "ccf8c17e17c1c23581efc0cafb8bc3971f25f3a66a6ffb6ad91cca1022936d5e",
+    "plain-utf8.txt": "266c201c590fca5fab967a0913cc007922e28b5444a2f40ea69fd23a8a4b8d86"
+  }
+}

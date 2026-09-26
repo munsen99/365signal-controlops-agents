@@ -57,6 +57,22 @@ def test_runtime_source_preserves_architecture_boundaries():
     assert not violations, "\n".join(violations)
 
 
+def test_pr2_network_module_preserves_authority_and_dependency_boundary():
+    source = (SOURCE / "fetch.py").read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    imported = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            imported.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.level == 0:
+            imported.add(node.module or "")
+    assert not imported.intersection({"requests", "httpx", "aiohttp", "urllib.request"})
+    assert "from .policy import Decision, ReasonCode, UrlDecision, evaluate_url" in source
+    assert "policy_data" not in source
+    assert "getproxies" not in source and "urlopen" not in source
+    assert "os.environ" not in source and "os.getenv" not in source
+
+
 @pytest.mark.parametrize("source", [
     "import aea", "import aea.control as control", "from aea import types",
     "from aea.policy import service", "import os, aea",

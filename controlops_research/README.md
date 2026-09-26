@@ -5,9 +5,12 @@ execution path. It is not part of Hermes or Econo, a plugin/profile, an extensio
 of the Autonomous Economic Agent, or a Grok Build orchestrator.
 
 PR0 established the scaffold. PR1 adds a pure deterministic URL policy with
-ACCEPT, REVIEW and REJECT decisions; candidate admission never authorises a
-connection. The package has no network access, model inference, database
-connectivity, paid APIs or autonomous behaviour. Later capabilities require review.
+ACCEPT, REVIEW and REJECT decisions. PR2 adds a bounded HTTPS acquisition path:
+every URL, redirect and resolved address remains subject to PR1; connections are
+pinned to approved numeric addresses; exact raw bytes are hashed and preserved
+before deterministic text extraction. The package has no model inference,
+database connectivity, paid APIs or autonomous reasoning. Later capabilities
+require review.
 The canonical build programme and status index live in [docs/prs/](docs/prs/README.md).
 
 Models reason. Deterministic controls establish authority.
@@ -27,4 +30,6 @@ python -m pip install -e '.[dev]'
 python -m pytest
 ```
 
-There are no runtime dependencies. Importing the package performs no runtime work.
+There are no third-party runtime dependencies. Importing the package performs no
+network, filesystem or other external work. PR2 tests use deterministic local
+adapters and never require the live public Internet.
