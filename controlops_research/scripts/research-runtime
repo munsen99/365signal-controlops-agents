@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+printf '%s\n' 'CONFIG_INVALID' >&2
+printf '%s\n' 'The PR5 prototype launcher is retired. Use: python -m controlops_research.runtime doctor' >&2
+exit 1

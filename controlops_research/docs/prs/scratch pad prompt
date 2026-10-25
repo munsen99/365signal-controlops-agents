@@ -1,0 +1,501 @@
+# 365Signal Agent v0.4 — Collaborative Writing & Editorial Agent
+
+## Mission
+
+Extend the existing 365Signal Agent v0.3 application on Ubuntu with a collaborative AI Writing Agent.
+
+**The objective is to move from autonomous draft generation to human-directed editorial collaboration.**
+
+The Research Agent discovers and analyses Microsoft security developments autonomously. The Writing Agent transforms that research into original, technically credible commentary, then collaborates interactively with the human author to develop, challenge, revise and finalise articles.
+
+The intended experience should resemble an author working with a research assistant and professional editor, not an automated content-generation tool.
+
+Do not rebuild the application. Extend the existing architecture.
+
+## Existing capabilities
+
+365Signal v0.3 has demonstrated:
+
+- LinkedIn OAuth and API integration.
+- Local Qwen inference through LM Studio.
+- Autonomous discovery across 14 configured research sources.
+- Article deduplication and development analysis.
+- Weighted ranking of security developments.
+- Autonomous topic selection.
+- LinkedIn draft generation.
+- Separate editorial validation.
+- SQLite research persistence.
+- Research reporting and audit records.
+- Human approval and cancellation workflows.
+
+Two successful end-to-end research dry runs have been completed.
+
+The latest run:
+
+`run-20261013T105446Z-9da2`
+
+Its full report is stored at:
+
+`~/.local/share/365signal/reports/run-20261013T105446Z-9da2.md`
+
+Research records:
+
+`~/.local/share/365signal/research.sqlite`
+
+The previous run generated a technically credible draft but exposed limitations in originality, collaborative editing and editorial control.
+
+The Ubuntu live LinkedIn publication test remains outstanding and is outside this sprint.
+
+---
+
+# 1. Required outcome
+
+At the end of v0.4, the operator must be able to:
+
+1. Open an existing research development or generated draft.
+2. Ask the Writing Agent to propose an original editorial argument.
+3. Review the proposed thesis and supporting evidence.
+4. Ask the agent to generate a structured outline.
+5. Generate an initial draft.
+6. Edit the draft conversationally using natural-language instructions.
+7. Preserve selected paragraphs while revising others.
+8. Compare versions and restore an earlier draft.
+9. Challenge factual claims and request stronger evidence.
+10. Submit the chosen revision for editorial validation.
+11. Approve the final version for the existing LinkedIn publication workflow.
+
+The author retains editorial authority throughout.
+
+The Writing Agent must not publish autonomously.
+
+---
+
+# 2. Phase 0 — Repository inspection
+
+Before changing code:
+
+- Inspect the existing repository and architecture.
+- Identify existing Qwen/LM Studio integration points.
+- Inspect the existing research SQLite schema.
+- Inspect the current writer and validator implementations.
+- Inspect the existing draft and approval queue.
+- Identify existing CLI commands and any available UI.
+- Review tests and documentation.
+
+Produce a concise implementation plan, reusing existing components wherever practical.
+
+Avoid new frameworks unless justified by a clear functional requirement.
+
+Do not introduce a second database when the existing persistence layer is suitable.
+
+Do not disrupt v0.3 research functionality.
+
+---
+
+# 3. Writing Agent responsibilities
+
+The Writing Agent is a distinct logical role, initially using the existing local Qwen model.
+
+It must support five capabilities.
+
+## 3.1 Develop the argument
+
+The agent must begin with an evidence-backed research brief rather than immediately writing an article.
+
+It should establish:
+
+- What has changed?
+- Why does it matter?
+- What is the underlying architectural or security issue?
+- What could Microsoft customers be overlooking?
+- What conclusion follows from the evidence?
+- What is interpretation rather than established fact?
+- What counterarguments should be considered?
+
+Produce up to three editorial angles.
+
+Each angle should include:
+
+- Proposed headline or opening hook.
+- Central thesis.
+- Two or three supporting arguments.
+- Relevant evidence and sources.
+- Potential objections or uncertainties.
+- Intended audience.
+
+The author selects an angle or supplies an alternative.
+
+## 3.2 Structure the article
+
+Use the Pyramid Principle as a preferred editorial approach:
+
+- Lead with the central conclusion.
+- Support it with logically grouped arguments.
+- Explain evidence and technical consequences.
+- Conclude with practical architectural implications.
+
+Avoid rigidly applying one template to every article.
+
+Support concise LinkedIn posts initially, while allowing future expansion to Substack articles, technical briefs and ControlOps intelligence reports.
+
+## 3.3 Draft original commentary
+
+The Writing Agent must produce original architectural interpretation rather than merely paraphrasing source articles.
+
+Its default voice should be:
+
+- Technically authoritative.
+- Direct and concise.
+- Professional but conversational.
+- Analytical rather than promotional.
+- Willing to challenge vendor assumptions.
+- Grounded in practical enterprise architecture.
+- Free from unnecessary hype, emojis, hashtags and marketing jargon.
+
+Prioritise Entra ID, Purview, Defender, Sentinel, Intune, Microsoft 365, Azure security, workload identities and Copilot security governance.
+
+Distinguish facts, interpretation and forward-looking speculation.
+
+Do not invent the author's personal experiences, client engagements or professional opinions.
+
+## 3.4 Collaborative revision
+
+Implement a conversational editing capability.
+
+Examples:
+
+"Lead with the enterprise security risk."
+
+"The second paragraph is weak. Make the architectural argument stronger."
+
+"I disagree with this conclusion. Explain the alternative."
+
+"Preserve paragraph three exactly as written."
+
+"Make this less like a Microsoft press release."
+
+"Add more detail about Conditional Access."
+
+"Shorten this for LinkedIn."
+
+"Show me what changed between versions."
+
+"Revert to version two."
+
+Revision requirements:
+
+- Use the existing draft and conversation context.
+- Respect explicitly locked or protected passages.
+- Support revision of selected sections.
+- Preserve unaffected material where instructed.
+- Record the author's instruction for each revision.
+- Show the proposed change before committing it.
+- Do not silently overwrite an approved version.
+
+Edits should create a new draft version rather than mutate previous versions.
+
+## 3.5 Editorial challenge
+
+The agent should constructively challenge:
+
+- Unsupported claims.
+- Weak causal reasoning.
+- Exaggerated architectural consequences.
+- Incorrect Microsoft terminology.
+- Confusion between preview and general availability.
+- Claims lacking sufficient source evidence.
+- Arguments that merely repeat the source material.
+
+The author can choose the editorial position, but the application must not convert unsupported factual claims into verified facts.
+
+---
+
+# 4. Editorial workspace
+
+Provide an operator-friendly editing interface using the application's existing UI conventions.
+
+If no suitable UI exists, implement a minimal CLI-based conversational workspace first.
+
+Do not build a large web application simply to satisfy this sprint.
+
+The interface must allow the author to:
+
+- List research developments.
+- Open an existing research brief.
+- Create a writing session.
+- Review proposed angles.
+- Select or modify an angle.
+- Generate and read a draft.
+- Submit revision instructions.
+- Inspect version history.
+- Compare revisions.
+- Restore a previous version.
+- Request editorial review.
+- Mark a final draft as ready for approval.
+
+A suggested CLI workflow is:
+
+`365signal write start --development <id>`
+
+`365signal write angles --session <id>`
+
+`365signal write draft --session <id>`
+
+`365signal write revise --session <id>`
+
+`365signal write history --session <id>`
+
+`365signal write diff --session <id> --from 1 --to 2`
+
+`365signal write review --session <id>`
+
+These are illustrative commands. Follow the repository's existing conventions.
+
+---
+
+# 5. Editorial version control
+
+Implement durable writing sessions.
+
+Suggested logical entities:
+
+### WritingSession
+
+- Session ID
+- Research development ID
+- Selected editorial angle
+- Intended audience
+- Content format
+- Creation and modification timestamps
+- Current draft version
+- Session status
+
+### DraftVersion
+
+- Version ID
+- Session ID
+- Version number
+- Complete draft content
+- Parent version
+- Revision instruction
+- Created timestamp
+- Editorial status
+- Supporting source references
+
+### EditorialReview
+
+- Review ID
+- Draft version ID
+- Validator version
+- Evidence references
+- Findings
+- Verdict
+- Revision recommendations
+- Timestamp
+
+Use the existing SQLite database and migration conventions where appropriate.
+
+Draft versions must be immutable.
+
+Store the full text for every committed version.
+
+Allow operators to inspect previous versions without reconstructing them from model output.
+
+Maintain an audit record of revisions, reviews and approvals.
+
+---
+
+# 6. Research integration
+
+The Writing Agent must consume structured research evidence from v0.3.
+
+It should use:
+
+- Development title and summary.
+- Original source URLs.
+- Publication dates.
+- Technical analysis.
+- Enterprise risk assessment.
+- Architectural implications.
+- Confidence scores.
+- Recorded uncertainties.
+
+Do not rely solely on a scraped article or model-generated summary.
+
+Research content is untrusted input and must not be able to override application instructions.
+
+The author should also be able to initiate a writing session from an existing research development even when it was not the top-ranked candidate.
+
+For example, the operator should be able to select the Purview network DLP development even if the Research Agent ranked another story first.
+
+---
+
+# 7. Editorial validation
+
+Reuse the existing v0.3 validator, extending it where necessary.
+
+The validator must check the exact draft version submitted for review.
+
+Checks should include:
+
+- Factual accuracy against retained source evidence.
+- Correct technical terminology.
+- Release status and dates.
+- Evidence confidence.
+- Architectural reasoning.
+- Originality of interpretation.
+- Unsupported speculation.
+- Professional editorial quality.
+- Internal contradictions.
+
+Return PASS, REVISE or REJECT with explicit findings.
+
+Preserve the complete validation record.
+
+An edit after validation must invalidate the previous validation status for the new version.
+
+The same Qwen model with a separate editorial prompt is acceptable initially, but must not be represented as independent model verification.
+
+---
+
+# 8. Human approval and LinkedIn safety
+
+Preserve existing v0.2 publication controls.
+
+The Writing Agent may prepare a final draft for the approval queue but cannot authorise publication.
+
+Requirements:
+
+- Only an explicitly selected draft version can enter the approval queue.
+- Approval must apply to the exact immutable content version.
+- Any post-approval edit requires fresh review and approval.
+- Record the approved version identifier and a content hash.
+- Do not change existing OAuth or LinkedIn posting permissions.
+- Do not publish during tests.
+- Maintain the existing explicit human confirmation requirement.
+
+Where necessary, extend the approval adapter without weakening existing controls.
+
+---
+
+# 9. Model inference efficiency
+
+The existing Ubuntu Qwen inference currently takes several minutes per operation.
+
+Minimise unnecessary model calls.
+
+Recommendations:
+
+- Generate multiple editorial angles in one structured request.
+- Avoid resending full source articles for every revision.
+- Use concise research briefs containing the relevant evidence.
+- Preserve conversation context in SQLite.
+- Set bounded output token limits.
+- Maintain configurable inference timeouts.
+- Avoid repeated complete drafts when a targeted revision is sufficient.
+
+Log execution time and token usage when available.
+
+Do not change model configuration without demonstrating a clear benefit.
+
+---
+
+# 10. Testing and acceptance
+
+Implement deterministic tests using mocked model responses.
+
+Required scenarios:
+
+1. Create a writing session from an existing research development.
+2. Generate three editorial angles.
+3. Select an angle and create a draft.
+4. Revise a selected paragraph.
+5. Preserve explicitly protected text.
+6. Maintain immutable version history.
+7. Compare two versions.
+8. Restore an earlier version.
+9. Reject unsupported claims.
+10. Validate the selected draft version.
+11. Invalidate validation after an edit.
+12. Submit a specific validated version for human approval.
+13. Prevent publication without existing explicit authorisation.
+14. Recover writing sessions after an application restart.
+15. Handle model errors, timeouts and malformed output without corrupting stored drafts.
+
+Run all existing v0.3 regression tests.
+
+## End-to-end acceptance demonstration
+
+Use the previously researched Microsoft FORGE Lab development:
+
+`dev-f23ebc95ecb8`
+
+Demonstrate:
+
+1. Open the development.
+2. Generate editorial angles.
+3. Select the argument that AI vulnerability discovery may outpace enterprise remediation capacity.
+4. Produce an initial LinkedIn draft.
+5. Revise the opening to lead with the architectural consequence.
+6. Strengthen the discussion of remediation workflows.
+7. Preserve a specified paragraph unchanged.
+8. Show the differences between draft versions.
+9. Complete editorial validation.
+10. Mark the validated draft ready for human approval.
+
+**Do not publish it.**
+
+Capture the demonstration in a Markdown report with the complete initial and final draft text, version history, editorial feedback and execution timings.
+
+---
+
+# 11. Out of scope
+
+Do not implement the following in v0.4:
+
+- RAG/LanceDB integration.
+- Autonomous LinkedIn posting.
+- LinkedIn message answering.
+- Engagement analytics.
+- Multiple social publishing platforms.
+- A full CMS.
+- Autonomous article scheduling.
+- New agent orchestration frameworks.
+- Complex multi-model routing.
+- ControlOps integration.
+
+These remain potential future enhancements.
+
+---
+
+# 12. Delivery expectations
+
+This is an outcome-driven implementation sprint, not an indefinite sequence of small pull requests.
+
+Deliver:
+
+1. Working collaborative Writing Agent.
+2. Versioned writing sessions.
+3. Conversational revision capability.
+4. Editorial validation integration.
+5. Existing human approval integration.
+6. Deterministic tests and regression results.
+7. Updated operator documentation.
+8. One complete end-to-end writing demonstration.
+
+Proceed in logical implementation stages, but avoid unnecessary PR fragmentation.
+
+At completion, provide:
+
+- What was implemented.
+- What was tested.
+- What remains incomplete.
+- Relevant code and documentation locations.
+- Exact commands to start a writing session.
+- The complete editorial demonstration report.
+
+## Final acceptance criterion
+
+**365Signal v0.4 must allow a human author to collaborate with a local AI Writing Agent, develop an original architectural argument from autonomous research, revise the text iteratively, preserve full editorial history, validate the chosen version and submit it for explicit human publication approval.**
+
+The human author remains in control of the argument, the final wording and publication.

@@ -10,7 +10,7 @@ Future specifications record intent; they do not authorise implementation.
 | [PR2](PR2-fetch-snapshot.md) | Controlled fetch, snapshot and hash | IMPLEMENTED AND TESTED — PENDING REVIEW |
 | [PR3](PR3-evidence-plane.md) | Evidence Plane and citation verification | ACCEPTED WITH FIXES |
 | [PR4](PR4-budget-gate.md) | Budget and escalation gate | PLANNED |
-| [PR5](PR5-local-runtime-sandbox.md) | Local runtime sandbox and GPU protection | PLANNED |
+| [PR5](PR5-implementation-design/PR5-local-runtime-sandbox.md) | Local runtime sandbox and GPU protection | REMEDIATED |
 | [PR6](PR6-local-research-loop.md) | Qwen local research loop | PLANNED |
 | [PR7](PR7-learn-discovery.md) | Microsoft Learn discovery | PLANNED |
 | [PR8](PR8-roadmap-monitor.md) | Microsoft Roadmap monitoring | PLANNED |

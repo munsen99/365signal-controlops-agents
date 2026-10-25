@@ -1,37 +1,106 @@
-PR1 FINAL REVIEW DECISION: ACCEPTED.
+# PR5 — Independent Evidence and Acceptance Review
 
-PR1 — Public URL Policy v1.0.0 is approved for commit.
+Review PR5 independently and determine whether the implementation can be accepted as complete.
 
-The approved implementation, fixture amendment and runtime acceptance
-amendment constitute the final PR1 record.
+Do **not** modify implementation files, LM Studio model state, Hermes source, Compose configuration or runtime dependencies.
 
-Authorisation:
-- Stage ONLY files belonging to ControlOps Research PR0/PR1 that are
-  required for the PR1 implementation and its approved audit evidence.
-- Do not stage any unrelated autonomous_economic_agent, platform,
-  scripts/economic or other pre-existing workspace changes.
-- Do not begin PR2.
-- Do not modify policy behaviour, policy data, fixtures or tests.
+## Evidence to review
 
-Before committing:
-1. Show the exact staged file list.
-2. Verify no unrelated files are staged.
-3. Run git diff --cached --check.
-4. Run the Python 3.14 ControlOps Research test suite once against the
-   final staged working state.
-5. Confirm the PR1 implementation/evidence files correspond to the
-   reviewed versions.
+Inspect:
 
-If any unexpected file or difference appears, STOP without committing.
+```text
+controlops_research/scripts/research-runtime
+controlops_research/tests/test_runtime_sandbox.sh
+controlops_research/docs/prs/PR5-implementation-design/PR5-local-runtime-sandbox.md
+controlops_research/docs/prs/reports/pr5-live-acceptance-2026-09-28.md
+```
 
-If all checks pass, commit the approved PR1 changes with a concise
-message identifying PR1 Public URL Policy v1.0.0.
+Also inspect the current Git diff relevant to PR5.
 
-After commit:
-- report the commit hash;
-- exact committed file list;
-- final test result;
-- git status --short;
-- confirm PR2 was not begun.
+## Review objectives
 
-Do not push unless separately authorised.
+Verify that the recorded evidence demonstrates:
+
+1. Exact `qwen3.8-27b` readiness against live `GET /v1/models`.
+2. Bubblewrap filesystem isolation.
+3. Read-only approved workspace exposure.
+4. Prohibited host/Hermes paths are inaccessible.
+5. Docker socket is inaccessible.
+6. Bubblewrap uses an unshared network namespace.
+7. LM Studio probing occurs outside the jail against `127.0.0.1:1234`.
+8. Exclusive runtime locking works.
+9. A conflicting run fails immediately with `MODEL_CONTENTION`.
+10. Lock recovery works after normal completion.
+11. Lock recovery works after abnormal workload exit.
+12. ControlOps does not load, unload, replace or evict LM Studio models.
+13. `bash scripts/controlops doctor` reports no new PR5 failures.
+14. `bash tests/operations/controlops-smoke.sh` passes.
+15. PR5 regression tests pass.
+16. `git diff --check` passes.
+17. No files under `/home/proteu5/AI/Hermes/hermes-agent` were modified.
+18. No unrelated PR4, Compose or runtime dependency changes were introduced.
+
+## Case 2 exception review
+
+The negative exact-model test returns:
+
+```text
+MODEL_NOT_READY
+```
+
+through a deterministic response shim.
+
+It is **not live-host evidence**, because removing or replacing the live required model would alter LM Studio model state and violate the PR5 contract.
+
+Determine whether this should be accepted as a documented testability exception.
+
+Do not alter LM Studio model state merely to obtain 14/14 live tests.
+
+The exception is acceptable only if:
+
+- the production code path being tested is the same readiness logic used against live `/v1/models`;
+- the shim changes only the response presented to that logic;
+- no bypass or alternate readiness implementation exists;
+- live positive exact-model readiness has already been demonstrated;
+- the exception represents an evidence limitation rather than a known functional defect.
+
+## Required output
+
+Update only the PR5 specification/status and/or PR5 evidence report as necessary.
+
+controlops_research/docs/prs/PR5-implementation-design/PR5-local-runtime-sandbox.md
+controlops_research/docs/prs/reports/pr5-live-acceptance-2026-09-28.md
+
+Record:
+
+```text
+Implementation status:
+Acceptance result:
+Live acceptance cases:
+Exception:
+Regression status:
+Reviewer decision:
+```
+
+Use one of these reviewer decisions:
+
+```text
+ACCEPT
+ACCEPT WITH DOCUMENTED EXCEPTION
+REJECT
+```
+
+If any listed artefact is absent, stop.
+Decision: REJECT
+Reason: evidence not inspectable in this environment.
+Do not reconstruct live results from chat.
+
+If accepted with exception, state explicitly:
+
+> The outstanding case is a live-testability limitation, not a known runtime defect. Demonstrating the negative live-model state would require altering LM Studio model state, which PR5 explicitly prohibits.
+
+## Completion rule
+
+PR5 may be marked complete only if the implementation satisfies the runtime contract, all other required live evidence is present, regressions pass, and the Case 2 exception is independently judged acceptable.
+
+Do not begin PR6.
